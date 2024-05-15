@@ -1,0 +1,45 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net7.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <UseWPF>true</UseWPF>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Remove="ServerList.txt" />
+    <None Remove="StunList.txt" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="ServerList.txt" />
+    <EmbeddedResource Include="StunList.txt" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ScottPlot.WPF" Version="4.1.67" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\DirtyProxy\STUN-master\STUN\STUN.csproj" />
+    <ProjectReference Include="..\..\LiteNetLib-1.1.0\LiteNetLib\LiteNetLib.csproj" />
+    <ProjectReference Include="..\MozUtil\MozUtil.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Update="AppResources.Designer.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>AppResources.resx</DependentUpon>
+    </Compile>
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Update="AppResources.resx">
+      <Generator>ResXFileCodeGenerator</Generator>
+      <LastGenOutput>AppResources.Designer.cs</LastGenOutput>
+    </EmbeddedResource>
+  </ItemGroup>
+
+</Project>

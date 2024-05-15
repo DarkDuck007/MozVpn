@@ -1,0 +1,18 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+	  <TargetFramework>net6.0</TargetFramework>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Win32.Registry" Version="5.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\DirtyProxy\STUN-master\STUN\STUN.csproj" />
+    <ProjectReference Include="..\..\HttpToSocks5Proxy-archived\src\HttpToSocks5Proxy\HttpToSocks5Proxy.csproj" />
+    <ProjectReference Include="..\..\LiteNetLib-1.1.0\LiteNetLib\LiteNetLib.csproj" />
+  </ItemGroup>
+
+</Project>

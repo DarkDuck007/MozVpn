@@ -1,0 +1,153 @@
+﻿<Window x:Class="MozVpnWPF.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:ScottPlot="clr-namespace:ScottPlot;assembly=ScottPlot.WPF"
+        xmlns:local="clr-namespace:MozVpnWPF" Closing="Window_Closing"
+        mc:Ignorable="d" FontSize="16"
+        Title="MozVpn" Height="600" Width="450">
+   <Border Padding="5">
+      <Grid>
+         <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="*"/>
+         </Grid.ColumnDefinitions>
+         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+         </Grid.RowDefinitions>
+         <StackPanel Grid.Row="0" Grid.Column="0">
+            <Button Margin="3" x:Name="ToggleServerConnectionBtn" Click="ToggleServerConnectionBtn_Click">Connect</Button>
+            <CheckBox Margin="3" FontSize="12" x:Name="ProxyModeCheckBox" Unchecked="ProxyModeCheckBox_Unchecked" Checked="ProxyModeCheckBox_Checked">System Proxy</CheckBox>
+            <CheckBox Margin="3" FontSize="12" x:Name="ForceActSymmetricCheckBox">FASymmetric</CheckBox>
+            <CheckBox Margin="3" x:Name="TunModeCheckBox" IsEnabled="False">Tun Mode</CheckBox>
+            <CheckBox Margin="3" x:Name="FuckEmPorts" IsEnabled="True">Fuck Ports</CheckBox>
+         </StackPanel>
+         <StackPanel Grid.Row="0" Grid.Column="1">
+            <StackPanel Orientation="Vertical">
+               <StackPanel Orientation="Horizontal">
+                  <TextBlock Text="HTTP Status:" Margin="3"/>
+                  <TextBlock x:Name="HTTPStatusLabel" Text="Not Connected" 
+                             Foreground="Red" Margin="3"/>
+               </StackPanel>
+               <StackPanel Orientation="Horizontal">
+                  <TextBlock Text="UDP Status:" Margin="3"/>
+                  <TextBlock x:Name="UDPStatusLabel" Text="Not Connected"
+                             Foreground="Red" Margin="3"/>
+               </StackPanel>
+            </StackPanel>
+            <GroupBox Header="Proxy Addresses">
+               <StackPanel>
+                  <TextBox BorderThickness="0" Margin="3" x:Name="SocksProxyAddress"
+                     IsReadOnly="True" Text="-"/>
+                  <TextBox BorderThickness="0" Margin="3" x:Name="HTTPProxyAddress"
+                     IsReadOnly="True" Text="-"/>
+               </StackPanel>
+            </GroupBox>
+         </StackPanel>
+         <GroupBox Header="Connection Initiation Settings" Padding="5" Grid.Row="1" Grid.ColumnSpan="2">
+            <StackPanel Orientation="Vertical">
+               <Grid>
+                  <Grid.ColumnDefinitions>
+                     <ColumnDefinition Width="Auto"/>
+                     <ColumnDefinition Width="*"/>
+                  </Grid.ColumnDefinitions>
+                  <Grid.RowDefinitions>
+                     <RowDefinition Height="Auto"/>
+                     <RowDefinition Height="Auto"/>
+                     <RowDefinition Height="Auto"/>
+                  </Grid.RowDefinitions>
+                  <RadioButton Content="Use Proxy" x:Name="UseProxyRadioBtn" Margin="3" Grid.Column="0" Grid.Row="0"></RadioButton>
+                  <TextBox x:Name="ConInitProxyServerEntry" Grid.Column="1" Margin="3" Grid.Row="0"/>
+                  <RadioButton IsEnabled="False" Content="Use CFW" Margin="3" Grid.Column="0" Grid.Row="1"></RadioButton>
+                  <RadioButton IsChecked="True" Content="Direct Connection" Margin="3" Grid.Column="0" Grid.Row="2"></RadioButton>
+               </Grid>
+               <Grid>
+                  <Grid.ColumnDefinitions>
+                     <ColumnDefinition Width="Auto"/>
+                     <ColumnDefinition Width="*"/>
+                  </Grid.ColumnDefinitions>
+                  <Grid.RowDefinitions>
+                     <RowDefinition Height="Auto"/>
+                     <RowDefinition Height="Auto"/>
+                     <RowDefinition Height="Auto"/>
+                     <RowDefinition Height="Auto"/>
+                  </Grid.RowDefinitions>
+                  <TextBlock Text="Stun Server:" Margin="3" Grid.Column="0"/>
+                  <ComboBox x:Name="StunServerSelectorComboBox" IsEditable="True" Grid.Column="1" SelectedIndex="0" Margin="3" ItemsSource="{Binding Path=(local:StaticInformation.StunServers)}"></ComboBox>
+                  <TextBlock Text="ConnectionType" Margin="3" Grid.Column="0" Grid.Row="1"/>
+                  <ComboBox x:Name="ConnectionTypeComboBox" Margin="3" SelectedIndex="0" IsEditable="False" Grid.Column="1" Grid.Row="1">
+                     <ComboBoxItem>Reliable</ComboBoxItem>
+                     <ComboBoxItem>Unreliable</ComboBoxItem>
+                     <ComboBoxItem>TCP</ComboBoxItem>
+                     <ComboBoxItem>BALETUN</ComboBoxItem>
+                  </ComboBox>
+                  <TextBlock Text="Max Channels:" Grid.Row="2" Margin="3" />
+                  <ComboBox Margin="3" Grid.Row="2" Grid.Column="1" x:Name="MaxChannelsComboBox" SelectedIndex="7" ItemsSource="{Binding Path=(local:StaticInformation.PossibleChannelCount)}"></ComboBox>
+                  <TextBlock Text="Server Address:" Grid.Row="3" Margin="3"/>
+                  <ComboBox Margin="3" IsEditable="True" Grid.Row="3" Grid.Column="1" x:Name="ServerSelectionComboBox" SelectedIndex="0" ItemsSource="{Binding Path=(local:StaticInformation.ServerList)}"></ComboBox>
+
+               </Grid>
+            </StackPanel>
+         </GroupBox>
+         <!--<Expander Grid.Row="2" Header="Log" Grid.ColumnSpan="2" IsExpanded="True">-->
+         <!--</Expander>-->
+         <TabControl Grid.Row="2" SelectedIndex="1" Grid.ColumnSpan="2">
+            <TabItem Header="Log">
+               <TextBox x:Name="LogTextBox" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Visible">MozVPNLog</TextBox>
+            </TabItem>
+            <TabItem Header="Info">
+               <Grid>
+                  <Grid.ColumnDefinitions>
+                     <ColumnDefinition Width="Auto"/>
+                     <ColumnDefinition Width="*"/>
+                     <ColumnDefinition Width="Auto"/>
+                     <ColumnDefinition Width="*"/>
+                  </Grid.ColumnDefinitions>
+                  <Grid.RowDefinitions>
+                     <RowDefinition Height="*"/>
+                  </Grid.RowDefinitions>
+                  <!--<Label Content="Latency"/>
+                  <ScottPlot:WpfPlot x:Name="PingChart" ClipToBounds="True">
+                  </ScottPlot:WpfPlot>
+                  <Button x:Name="TestBtn" Click="TestBtn_Click" Grid.Row="1" Content="Click" Width="100"/>-->
+                  <StackPanel Grid.Column="0" Grid.Row="0" >
+                     <TextBlock Margin="3" Text="Latency:"/>
+                     <TextBlock Margin="3" Text="Loss:"/>
+                     <TextBlock Margin="3" Text="Outbound:"/>
+                     <TextBlock Margin="3" Text="Inbound:"/>
+                     <TextBlock Margin="3" Text="Uptime:"/>
+
+                  </StackPanel>
+                  <StackPanel Grid.Column="1" Grid.Row="0">
+                     <TextBlock Margin="3" x:Name="PingTextBox" Text="0ms"/>
+                     <TextBlock Margin="3" x:Name="PakcetLossPercentTextBox" Text="0%"/>
+                     <TextBlock Margin="3" x:Name="OutboundRateTextBox" Text="0 B/sec"/>
+                     <TextBlock Margin="3" x:Name="InboundRateTextBox" Text="0 B/sec"/>
+                     <TextBlock Margin="3" x:Name="UptimeTextBox" Text="00:00:00"/>
+
+                  </StackPanel>
+                  <StackPanel Grid.Column="2" Grid.Row="0">
+                     <TextBlock Margin="3" Text="Connections:"/>
+                     <TextBlock Margin="3" Text="Channels:"/>
+                     <TextBlock Margin="3" Text="Total Out:"/>
+                     <TextBlock Margin="3" Text="Total In:"/>
+
+                  </StackPanel>
+                  <StackPanel Grid.Row="0" Grid.Column="3">
+                     <TextBlock Margin="3" x:Name="ActiveConnectionsTextBox" Text="0"/>
+                     <TextBlock Margin="3" x:Name="ChannelsTextBox" Text="0"/>
+                     <TextBlock Margin="3" x:Name="TotalOutTextBox" Text="0 B"/>
+                     <TextBlock Margin="3" x:Name="TotalInTextBox" Text="0 B"/>
+
+                  </StackPanel>
+               </Grid>
+
+            </TabItem>
+            <!--<TabItem Header="Channels"/>-->
+         </TabControl>
+      </Grid>
+   </Border>
+</Window>
