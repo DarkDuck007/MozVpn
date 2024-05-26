@@ -110,16 +110,30 @@ namespace MozUtil
          }
          catch (Exception ex)
          {
-            Logger.Log(ex.StackTrace);
+            //Logger.Log(ex.StackTrace + ex.Message);
             Close();
          }
       }
 
       public void Close()
       {
-         ConnectionClosed?.Invoke(this, ConnectionID);
-         TcpClientToClient.Close();
-         tcpClientToClientStream.Close();
+         try
+         {
+            ConnectionClosed?.Invoke(this, ConnectionID);
+         }
+         catch (Exception ex)
+         {
+            Logger.Log(ex.StackTrace + ex.Message);
+         }
+         try
+         {
+            TcpClientToClient.Close();
+            tcpClientToClientStream.Close();
+         }
+         catch (Exception ex)
+         {
+            Logger.Log(ex.StackTrace + ex.Message);
+         }
       }
    }
 }

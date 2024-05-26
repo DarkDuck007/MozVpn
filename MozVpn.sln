@@ -25,7 +25,9 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ConnectionSpammer", "Connec
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Test-MozClientOverload", "Test-MozClientOverload\Test-MozClientOverload.csproj", "{A63CDEAB-5A77-41B6-B3A4-56BD978D7D91}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EncryptedBehind-NATTransportConsole", "EncryptedBehind-NATTransportConsole\EncryptedBehind-NATTransportConsole.csproj", "{54664E83-C956-4888-B2DC-9FE5268DCF0D}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "EncryptedBehind-NATTransportConsole", "EncryptedBehind-NATTransportConsole\EncryptedBehind-NATTransportConsole.csproj", "{54664E83-C956-4888-B2DC-9FE5268DCF0D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BinaryConverterTests", "BinaryConverterTests\BinaryConverterTests.csproj", "{FFB79A98-882F-4076-A7F2-6FA3ADDF2C8E}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -135,6 +137,14 @@ Global
 		{54664E83-C956-4888-B2DC-9FE5268DCF0D}.Release|Any CPU.Build.0 = Release|Any CPU
 		{54664E83-C956-4888-B2DC-9FE5268DCF0D}.Release|ARM32.ActiveCfg = Release|Any CPU
 		{54664E83-C956-4888-B2DC-9FE5268DCF0D}.Release|ARM32.Build.0 = Release|Any CPU
+		{FFB79A98-882F-4076-A7F2-6FA3ADDF2C8E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FFB79A98-882F-4076-A7F2-6FA3ADDF2C8E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FFB79A98-882F-4076-A7F2-6FA3ADDF2C8E}.Debug|ARM32.ActiveCfg = Debug|Any CPU
+		{FFB79A98-882F-4076-A7F2-6FA3ADDF2C8E}.Debug|ARM32.Build.0 = Debug|Any CPU
+		{FFB79A98-882F-4076-A7F2-6FA3ADDF2C8E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FFB79A98-882F-4076-A7F2-6FA3ADDF2C8E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FFB79A98-882F-4076-A7F2-6FA3ADDF2C8E}.Release|ARM32.ActiveCfg = Release|Any CPU
+		{FFB79A98-882F-4076-A7F2-6FA3ADDF2C8E}.Release|ARM32.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -96,7 +96,11 @@ namespace MozUtil.Clients
          if (ConID == 0)
          {
             ConID = BitConverter.ToUInt16(RecData, 2);
-            if (Connections.ContainsKey(ConID))
+            if (ConID == 0)//Server commands over UDP
+            {
+
+            }
+            else if (Connections.ContainsKey(ConID))
             {
                Connections[ConID].Close();
                Logger.Log($"Connection {ConID} Closed by the server.");
@@ -105,7 +109,7 @@ namespace MozUtil.Clients
             return;
          }
 
-         _ = HandleIncomingUdpDataAsync(ConID, channelNumber, RecData[2..], peer);
+         HandleIncomingUdpDataAsync(ConID, channelNumber, RecData[2..], peer).Wait();
          //throw new NotImplementedException();
       }
 
@@ -611,7 +615,7 @@ namespace MozUtil.Clients
          }
          catch (Exception ex)
          {
-            Logger.Log(ex.Message);
+            Logger.Log(ex.Message + ex.StackTrace);
             //Unknown exception when writing to tcpclient. aborting.
          }
       }

@@ -45,7 +45,7 @@ namespace MozVpnWPF
          ToggleServerConnectionBtn.Content = "Connect";
          OneSecondTimer = new Timer(OneSecondTimerCallback, null, 1000, 1000);
       }
-
+      int TimerCounter = 0;
       private void ToggleServerConnectionBtn_Click(object sender, RoutedEventArgs e)
       {
          try
@@ -287,6 +287,19 @@ namespace MozVpnWPF
          {
             Uptime = TimeSpan.Zero;
          }
+         try
+         {
+            TimerCounter++;
+            if (TimerCounter >= 10)
+            {
+               TimerCounter = 0;
+               GC.Collect();
+            }
+         }
+         catch (Exception ex)
+         {
+            Logger.Log(ex.StackTrace + Environment.NewLine + ex.Message);
+         }
       }
       private void Manager_LatencyUpdated(object? sender, int e)
       {
@@ -333,6 +346,13 @@ namespace MozVpnWPF
       private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
       {
          MozWin32.unsetProxy();
+      }
+
+      private void TextBlock_MouseDown(object sender, MouseButtonEventArgs e)
+      {
+         GC.Collect();
+         GC.Collect(GC.MaxGeneration);
+         Logger.Log(GC.GetGCMemoryInfo().HeapSizeBytes.ToString());
       }
    }
 }

@@ -8,18 +8,19 @@ internal class Program
 {
    private static void Main(string[] args)
    {
-      string URL = "http://localhost/Anime/Windows Activator.exe";
+      string URL = "http://localhost/gcc-13.2.0-no-debug.7z";
       for (int i = 0; i < 32; i++)
       {
          Task.Run(() =>
          {
-            byte[] buffer = ArrayPool<byte>.Shared.Rent(4096);
+            var buffer = ArrayPool<byte>.Shared.Rent(4096);
+            
             try
             {
                while (true)
                {
                   HttpWebRequest Req = WebRequest.CreateHttp(URL);
-                  Req.Proxy = new WebProxy("HTTP://127.0.0.1:63850");
+                  Req.Proxy = new WebProxy("HTTP://127.0.0.1:6387");
                   var resp = Req.GetResponse();
                   var resps = resp.GetResponseStream();
                   int k = 0;

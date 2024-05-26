@@ -129,7 +129,7 @@ namespace MozVpnMAUI
                {
                   LocalServer = true;
                }
-               Manager = new MozManager(ServerURL, MaxChannels, StunServer, 63750, 63850, 10000, LocalServer, uMode, EnableProxy, ProxyAdr);
+               Manager = new MozManager(ServerURL, MaxChannels, StunServer, 6075, 6085, 10000, LocalServer, uMode, EnableProxy, ProxyAdr);
                Manager.NewLogArrived += Manager_NewLogArrived;
                Manager.LatencyUpdated += Manager_LatencyUpdated;
                Manager.StatusUpdated += Manager_StatusUpdated;

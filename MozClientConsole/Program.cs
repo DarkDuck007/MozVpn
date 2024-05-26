@@ -207,7 +207,7 @@ namespace MozClientConsole
       }
       private async void Program_ServerCommandOverHTTP(object? sender, byte[] e)
       {
-         ServerCommand Command = (ServerCommand)e[0];
+         ServerCommands Command = (ServerCommands)e[0];
          if (e == KeepAlivePacket || ((int)Command) == 58)
          {
             //yeah, no. do nothing.
@@ -216,7 +216,7 @@ namespace MozClientConsole
          {
             switch (Command)
             {
-               case ServerCommand.BeginHolePunching:
+               case ServerCommands.BeginHolePunching:
                   HolePunchPeerInfo peerInfo = MozStatic.DeserializePunchInfo(e, 1);
                   _ = Task.Run(async () =>
                     {
@@ -226,7 +226,7 @@ namespace MozClientConsole
                        WriteLineWithColor($"Punching took {ST.ElapsedTicks.ToString()} Ticks ({ST.ElapsedMilliseconds.ToString()} ms)", ConsoleColor.Green);
                     });
                   break;
-               case ServerCommand.PunchResult:
+               case ServerCommands.PunchResult:
                   if (e[1] == 0xaa)
                   {
                      //Failed
@@ -245,12 +245,12 @@ namespace MozClientConsole
                      throw new Exception("Unknown punch status received from the server.");
                   }
                   break;
-               case ServerCommand.BeginUdpClient:
+               case ServerCommands.BeginUdpClient:
                   WriteLineWithColor("Starting udp client...", ConsoleColor.Magenta);
                   udpConnectionInfo udpInfo = MozStatic.DeserializeUdpConnectionInfo(e, 1);
                   _ = StartUdpTun(udpInfo);
                   break;
-               case ServerCommand.KeepAlive:
+               case ServerCommands.KeepAlive:
                   //Do nothing
                   break;
                default:

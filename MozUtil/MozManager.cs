@@ -384,7 +384,7 @@ namespace MozUtil
                Logger.Log(ex.Message + Environment.NewLine + ex.StackTrace);
             }
 
-         ServerCommand Command = (ServerCommand)e[0];
+         ServerCommands Command = (ServerCommands)e[0];
          if (e == KeepAlivePacket || (int)Command == 58)
          {
             //yeah, no. do nothing.
@@ -393,7 +393,7 @@ namespace MozUtil
          {
             switch (Command)
             {
-               case ServerCommand.BeginHolePunching:
+               case ServerCommands.BeginHolePunching:
                   HolePunchPeerInfo peerInfo = MozStatic.DeserializePunchInfo(e, 1);
                   _ = Task.Run(async () =>
                   {
@@ -405,7 +405,7 @@ namespace MozUtil
                         ConsoleColor.Green);
                   });
                   break;
-               case ServerCommand.PunchResult:
+               case ServerCommands.PunchResult:
                   if (e[1] == 0xaa)
                   {
                      //Failed
@@ -422,12 +422,12 @@ namespace MozUtil
                   }
 
                   break;
-               case ServerCommand.BeginUdpClient:
+               case ServerCommands.BeginUdpClient:
                   Logger.WriteLineWithColor("Starting udp client...", ConsoleColor.Magenta);
                   udpConnectionInfo udpInfo = MozStatic.DeserializeUdpConnectionInfo(e, 1);
                   _ = StartUdpTun(udpInfo);
                   break;
-               case ServerCommand.KeepAlive:
+               case ServerCommands.KeepAlive:
                   //Do nothing
                   break;
             }

@@ -114,7 +114,7 @@
                   </ScottPlot:WpfPlot>
                   <Button x:Name="TestBtn" Click="TestBtn_Click" Grid.Row="1" Content="Click" Width="100"/>-->
                   <StackPanel Grid.Column="0" Grid.Row="0" >
-                     <TextBlock Margin="3" Text="Latency:"/>
+                     <TextBlock Margin="3" Text="Latency:" MouseDown="TextBlock_MouseDown"/>
                      <TextBlock Margin="3" Text="Loss:"/>
                      <TextBlock Margin="3" Text="Outbound:"/>
                      <TextBlock Margin="3" Text="Inbound:"/>
