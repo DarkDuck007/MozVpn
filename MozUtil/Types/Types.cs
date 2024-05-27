@@ -29,7 +29,14 @@ namespace MozUtil.Types
       //Ticks I reckon.
       public long Uptime { get; set; }
       public long TotalKeepAliveHttpConnections { get; set; }
-      
+      public ushort CurrentClientChannelsCount { get; set; }
+      public ushort CurrentClientConnectionsCount { get; set; }
+      //Upstream from server's view. means Downstream for client.
+      public long CurrentClientTotalUpstream { get; set; }
+      //Downstream from server's view. means Upstream for client.
+      public long CurrentClientTotalDownstream { get; set; }
+      public long CurrentClientPacketLossPercent { get; set; }
+      public int CurrentClientLatencyMiliseconds { get; set; }
    }
    public class CustomPipeInformation
    {

@@ -98,7 +98,7 @@
             <TabItem Header="Log">
                <TextBox x:Name="LogTextBox" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Visible">MozVPNLog</TextBox>
             </TabItem>
-            <TabItem Header="Info">
+            <TabItem Header="Client" HorizontalAlignment="Left" Width="44">
                <Grid>
                   <Grid.ColumnDefinitions>
                      <ColumnDefinition Width="Auto"/>
@@ -145,6 +145,53 @@
                   </StackPanel>
                </Grid>
 
+            </TabItem>
+            <TabItem Header="Server">
+               <Grid>
+                  <Grid.ColumnDefinitions>
+                     <ColumnDefinition Width="auto"></ColumnDefinition>
+                     <ColumnDefinition Width="*"></ColumnDefinition>
+                  </Grid.ColumnDefinitions>
+                  <Grid.RowDefinitions>
+                     <RowDefinition Height="auto"></RowDefinition>
+                     <RowDefinition Height="*"></RowDefinition>
+                  </Grid.RowDefinitions>
+                  <CheckBox Checked="EnableServerStatsUpdate_Checked" Unchecked="EnableServerStatsUpdate_Unchecked" x:Name="EnableServerStatsUpdate" Content="Enable" HorizontalAlignment="Center" VerticalAlignment="Center" VerticalContentAlignment="Center" HorizontalContentAlignment="Center"></CheckBox>
+                  <StackPanel Orientation="Horizontal" Grid.Column="1" Grid.Row="0" HorizontalAlignment="Center">
+                     <Label>status:</Label>
+                     <Label x:Name="ServerStatsReceivingStatus" >Not receiving</Label>
+                  </StackPanel>
+                  <Grid Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2">
+                     <local:StatsTable x:Name="ServerStatsTable">
+
+                     </local:StatsTable>
+                     <!--<ListView>
+                        <ListView.ItemTemplate>
+                           <DataTemplate>
+                              <StackPanel Orientation="Horizontal">
+                                 <TextBlock>PlaceHolder</TextBlock>
+                                 <TextBlock>PlaceHolder</TextBlock>
+                              </StackPanel>
+                           </DataTemplate>
+                        </ListView.ItemTemplate>
+                        <ListViewItem>
+                           <StackPanel Orientation="Horizontal">
+                              <TextBlock>Sag</TextBlock>
+                              <TextBlock>Sag</TextBlock>
+                           </StackPanel>
+                        </ListViewItem>
+                     </ListView>-->
+                     <!--<DataGrid>
+                        <DataGrid.Columns>
+                           <DataGridTemplateColumn Header="Name" Width="auto"/>
+                           <DataGridTextColumn Header="Value" Width="*"/>
+                        </DataGrid.Columns>
+                        <DataGrid.Items>
+
+                        </DataGrid.Items>
+                     </DataGrid>-->
+                  </Grid>
+               </Grid>
             </TabItem>
             <!--<TabItem Header="Channels"/>-->
          </TabControl>

@@ -76,7 +76,10 @@ namespace MozUtil
          AppendLog(message);
          //LogPath.Write(Encoding.UTF8.GetBytes(message));
       }
-
+      public static void LogException(Exception message)
+      {
+         Log(message.Message + Environment.NewLine + message.StackTrace);
+      }
       private static void SilentLog(string? message)
       {
          if (message != null) AppendLog(message);

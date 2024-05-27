@@ -8,6 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using LiteNetLib;
 using MihaZupan;
+using MozUtil.NatUtils;
 using MozUtil.Types;
 using STUN;
 
@@ -60,6 +61,28 @@ namespace MozUtil.Clients
       public event EventHandler<int>? LatencyUpdate;
       public event EventHandler<StatusResult>? StatusUpdate;
       public event EventHandler<Tuple<int, int>>? PortsChanged;
+      public event EventHandler<ServerStatusInformation>? ServerStatusInformationUpdated;
+      public bool EnableServerStatusInformationStreamingForPeer(int PeerID = -1, int interval = 1000)
+      {
+         try
+         {
+            if (PeerID == -1)
+            {
+               List<NetPeer> ConnectedPeers = new List<NetPeer>();
+               LiteNetManager.GetPeersNonAlloc(ConnectedPeers, ConnectionState.Connected);
+               PeerID = ConnectedPeers[0].Id;
+            }
+            byte[] SendBuffer = ClientCommandUtils.BuildServerStatsRequestCommand(interval);
+            LiteNetManager.GetPeerById(PeerID).Send(SendBuffer, DeliveryMethod.ReliableUnordered);
+         }
+         catch (Exception ex)
+         {
+            Logger.LogException(ex);
+            return false;
+         }
+         return true;
+      }
+
       public void Dispose()
       {
          Task.Run(() =>
@@ -98,7 +121,19 @@ namespace MozUtil.Clients
             ConID = BitConverter.ToUInt16(RecData, 2);
             if (ConID == 0)//Server commands over UDP
             {
-
+               ushort ServerCommandValue = BitConverter.ToUInt16(RecData, 4);
+               ServerCommands ServerCommand = (ServerCommands)((int)ServerCommandValue);
+               switch (ServerCommand)
+               {
+                  case ServerCommands.ServerStatusUpdate:
+                     ServerStatusInformation SSI = ServerCommandUtils.ServerStatusInformationFromBytes(RecData, 6);
+                     ServerStatusInformationUpdated?.Invoke(this, SSI);
+                     break;
+                  case ServerCommands.EndToEndPipeCreationResult:
+                     break;
+                  default:
+                     break;
+               }
             }
             else if (Connections.ContainsKey(ConID))
             {

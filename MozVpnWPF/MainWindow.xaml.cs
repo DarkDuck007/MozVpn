@@ -1,5 +1,6 @@
 ﻿using MozUtil;
 using MozUtil.NatUtils;
+using MozUtil.Types;
 using ScottPlot;
 using STUN;
 using System;
@@ -7,6 +8,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
+using System.Reflection;
 using System.Security.RightsManagement;
 using System.Text;
 using System.Threading;
@@ -149,6 +151,7 @@ namespace MozVpnWPF
       }
       void ToggleOff()
       {
+         EnableServerStatsUpdate.IsChecked = false;
          if (ToggleServerConnectionBtn.Content.ToString() == "Disconnect")
          {
             try
@@ -353,6 +356,90 @@ namespace MozVpnWPF
          GC.Collect();
          GC.Collect(GC.MaxGeneration);
          Logger.Log(GC.GetGCMemoryInfo().HeapSizeBytes.ToString());
+      }
+
+      private void EnableServerStatsUpdate_Checked(object sender, RoutedEventArgs e)
+      {
+         if (!isConnected)
+         {
+            MessageBox.Show("Cannot stream server stats when not connected", "Error");
+            EnableServerStatsUpdate.IsChecked = false;
+            return;
+         }
+         if (!ReferenceEquals(Manager, null))
+         {
+            Manager.MClient.ServerStatusInformationUpdated += MClient_ServerStatusInformationUpdated;
+            bool Res = Manager.MClient.EnableServerStatusInformationStreamingForPeer();
+            if (!Res)
+            {
+               MessageBox.Show("Couldn't enable server status information streaming.", "Error");
+            }
+            else
+            {
+               ServerStatsReceivingStatus.Content = "Request sent...";
+            }
+         }
+         else
+         {
+            MessageBox.Show("Mozmanager not found???! I think I'm not connected but I am... try launching the app again...", "Error");
+            EnableServerStatsUpdate.IsChecked = false;
+         }
+      }
+
+      PropertyInfo[] ServerStatusInformationPropertyInfos = typeof(ServerStatusInformation).GetProperties();
+      private void MClient_ServerStatusInformationUpdated(object? sender, MozUtil.Types.ServerStatusInformation e)
+      {
+         foreach (PropertyInfo item in ServerStatusInformationPropertyInfos)
+         {
+            string ItemValue = item.GetValue(e).ToString() ?? "null";
+            if (item.Name == "Uptime")
+            {
+               this.Dispatcher.Invoke(() =>
+               {
+                  if (ItemValue == "-1")
+                  {
+                     ServerStatsReceivingStatus.Content = "Rejected.";
+                     ServerStatsReceivingStatus.Foreground = Brushes.Red;
+                  }
+                  else
+                  {
+                     ServerStatsReceivingStatus.Content = "Enabled";
+                     ServerStatsReceivingStatus.Foreground = Brushes.Green;
+                  }
+               });
+            }
+            StatsTableItem TableItem = ServerStatsTable.CreateOrGetItemWithKey(item.Name);
+            TableItem.Dispatcher.Invoke(() =>
+            {
+               TableItem.Name.Content = item.Name;
+               if (item.Name == "Uptime")
+               {
+                  TableItem.Value.Content = TimeSpan.FromTicks((long)item.GetValue(e)).ToString();
+               }
+               else
+               {
+                  TableItem.Value.Content = ItemValue;
+               }
+            });
+         }
+      }
+
+      private void EnableServerStatsUpdate_Unchecked(object sender, RoutedEventArgs e)
+      {
+         if (!ReferenceEquals(Manager, null))
+         {
+            try
+            {
+               bool Res = Manager.MClient.EnableServerStatusInformationStreamingForPeer(-1, -1);
+               Manager.MClient.ServerStatusInformationUpdated -= MClient_ServerStatusInformationUpdated;
+               ServerStatsReceivingStatus.Content = "Not receiving";
+               ServerStatsReceivingStatus.Foreground = EnableServerStatsUpdate.Foreground;
+            }
+            catch (Exception ex)
+            {
+               Logger.LogException(ex);
+            }
+         }
       }
    }
 }

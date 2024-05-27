@@ -13,15 +13,28 @@ namespace MozUtil.Types
 {
    public class ClientCommandUtils
    {
+      /// <summary>
+      /// Set -1 to stop status streaming
+      /// </summary>
+      /// <param name="interval"></param>
+      /// <returns></returns>
+      /// <exception cref="NotSupportedException"></exception>
       public static byte[] BuildServerStatsRequestCommand(int interval)
       {
-         if (interval < 15)
+         if (interval < 15 && interval != -1)
             throw new NotSupportedException("Bro how fast do you want the reports to be? 16ms or higher is more than enough imo.");
-         return BitConverter.GetBytes(interval);
+
+         byte[] ValueBytes = BitConverter.GetBytes(interval);
+         byte[] ReturnBuffer = new byte[6 + ValueBytes.Length];
+         byte[] CommandBytes = BitConverter.GetBytes((ushort)ClientCommands.RequestServerStats);
+         Array.Copy(CommandBytes, 0, ReturnBuffer, 4, CommandBytes.Length);
+         Array.Copy(ValueBytes, 0, ReturnBuffer, 6, ValueBytes.Length);
+
+         return ReturnBuffer;
       }
-      public static int ReadServerStatsRequestCommand(byte[] command)
+      public static int ReadServerStatsRequestCommand(byte[] command, int Offset)
       {
-         return BitConverter.ToInt32(command, 0);
+         return BitConverter.ToInt32(command, Offset);
       }
       public static byte[] BuildCustomPipeCommand(CustomPipeInformation PipeInfo)
       {
@@ -34,6 +47,11 @@ namespace MozUtil.Types
 
          using (MemoryStream CommandStream = new MemoryStream())
          {
+            byte[] EmptyBytes = new byte[4];//for the server to recognize it's a command...
+            CommandStream.Write(EmptyBytes);
+            byte[] CommandBytes = BitConverter.GetBytes((ushort)ClientCommands.OpenEndToEndCustomPipe);
+            CommandStream.Write(CommandBytes);
+
             byte[] AddressFamilyBytes = BitConverter.GetBytes((int)DestinationIPAddress.AddressFamily);
             CommandStream.Write(AddressFamilyBytes);
             byte[] IPBytes = DestinationIPAddress.GetAddressBytes();

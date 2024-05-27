@@ -21,17 +21,17 @@ namespace MozUtil.NatUtils
    }
    public class ServerCommandUtils
    {
-      public static byte[] BuildServerStatusInformation(ServerStatusInformation ServerStatusInfo)
+      public static byte[] BuildServerStatusInformation(ServerStatusInformation ServerStatusInfo, int offset = 0)
       {
          int size = Marshal.SizeOf(ServerStatusInfo);
-         byte[] arr = new byte[size];
+         byte[] arr = new byte[size + offset];
 
          IntPtr ptr = IntPtr.Zero;
          try
          {
             ptr = Marshal.AllocHGlobal(size);
             Marshal.StructureToPtr(ServerStatusInfo, ptr, true);
-            Marshal.Copy(ptr, arr, 0, size);
+            Marshal.Copy(ptr, arr, offset, size);
          }
          finally
          {

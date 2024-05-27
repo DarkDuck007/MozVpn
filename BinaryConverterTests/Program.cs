@@ -32,7 +32,6 @@ namespace BinaryConverterTests
          //Console.WriteLine($"{interval} vs {interval2} = {interval == interval2}");
          Random RND = new Random();
          ServerStatusInformation StatusInfo = new ServerStatusInformation();
-         PropertyInfo[] members = typeof(ServerStatusInformation).GetProperties();
          //foreach (PropertyInfo item in members)
          //{
          //   if (item.Name == "TotalUpstreamBytes" || item.Name == "TotalDownstreamBytes" || item.Name == "Uptime")
@@ -65,11 +64,11 @@ namespace BinaryConverterTests
 
          ServerStatusInformation StatusInfo2 = ServerCommandUtils.ServerStatusInformationFromBytes(StatusInfoBytes, 0);
 
-         foreach (PropertyInfo item in members)
+         PropertyInfo[] ServerStatusInformationPropertyInfo = typeof(ServerStatusInformation).GetProperties();
+         foreach (PropertyInfo item in ServerStatusInformationPropertyInfo)
          {
             Console.WriteLine($"{item.GetValue(StatusInfo)} vs {item.GetValue(StatusInfo2)} = {item.GetValue(StatusInfo).Equals(item.GetValue(StatusInfo2))}");
          }
-
          Console.ReadLine();
       }
    }
