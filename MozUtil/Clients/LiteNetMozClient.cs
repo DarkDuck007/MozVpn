@@ -62,6 +62,7 @@ namespace MozUtil.Clients
       public event EventHandler<StatusResult>? StatusUpdate;
       public event EventHandler<Tuple<int, int>>? PortsChanged;
       public event EventHandler<ServerStatusInformation>? ServerStatusInformationUpdated;
+      public event EventHandler? HttpKeepAliveRequested;
       public bool EnableServerStatusInformationStreamingForPeer(int PeerID = -1, int interval = 1000)
       {
          try
@@ -131,6 +132,9 @@ namespace MozUtil.Clients
                      break;
                   case ServerCommands.EndToEndPipeCreationResult:
                      break;
+                  case ServerCommands.KeepAlive:
+                     HttpKeepAliveRequested?.Invoke(this, EventArgs.Empty);
+                     break;
                   default:
                      break;
                }
@@ -140,10 +144,8 @@ namespace MozUtil.Clients
                Connections[ConID].Close();
                Logger.Log($"Connection {ConID} Closed by the server.");
             }
-
             return;
          }
-
          HandleIncomingUdpDataAsync(ConID, channelNumber, RecData[2..], peer).Wait();
          //throw new NotImplementedException();
       }

@@ -57,7 +57,6 @@ namespace MozUtil
          _ProxyAddress = proxyAddress;
          _ForceSymmetric = ForceActSymmetric;
       }
-
       public NetStatistics? LiteNetStats
       {
          get
@@ -334,6 +333,7 @@ namespace MozUtil
                MClient.LatencyUpdate += (sender, e) => { LatencyUpdated?.Invoke(sender, e); };
                MClient.StatusUpdate += (sender, e) => { StatusUpdated?.Invoke(sender, e); };
                MClient.PortsChanged += MClient_PortsChanged;
+               MClient.HttpKeepAliveRequested += MClient_HttpKeepAliveRequested;
                MClient.symmetricConnectionClientCount = symmetricConnectionClientCount;
                await MClient.Start(udpInfo, stunResult.NATType);
                //StatusUpdated?.Invoke(this, StatusResult.Disconnected);
@@ -360,6 +360,19 @@ namespace MozUtil
          finally
          {
             if (!CTS.IsCancellationRequested) InitiateConnection();
+         }
+      }
+
+      private void MClient_HttpKeepAliveRequested(object? sender, EventArgs e)
+      {
+         try
+         {
+            _ = PollHttpServer(new byte[] { 0, 0, 0, 0 }, uMode, true, CTS.Token);
+         }
+         catch (Exception)
+         {
+
+            throw;
          }
       }
 
@@ -459,7 +472,7 @@ namespace MozUtil
                if (_ProxyAddress != null)
                   WebReq.Proxy = new WebProxy(_ProxyAddress);
                else
-                  Logger.Log("Proxy address was null, connecting without a proxy...");
+                  Logger.Log("Proxy address was null, connecting with default proxy...");
             }
 
             //WebReq.Proxy = new WebProxy("127.0.0.1", 2081);
