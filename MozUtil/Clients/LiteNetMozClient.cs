@@ -537,37 +537,37 @@ namespace MozUtil.Clients
          }
          Logger.WriteLineWithColor($"Socks5 server started on {IPAddress.Any}:{TcpListenPort}", ConsoleColor.Green);
          Logger.WriteLineWithColor($"socks5://127.0.0.1:{TcpListenPort}", ConsoleColor.Green);
-         for (int i = 0; i <= 50; i++)
-         {
-            if (i == 50)
-            {
-               Logger.Log("Couldn't bind the MtProto server");
-               throw new Exception("Couldn't bind the MtProto server");
-            }
-            try
-            {
-               MtServer = new TcpListener(IPAddress.Any, _MtSrvPort);
-               MtServer.Server.NoDelay = true;
-               MtServer.Start();
-               break;
-            }
-            catch (SocketException ex)
-            {
-               _MtSrvPort++;
-               try
-               {
-                  MtServer.Stop();
-                  MtServer.Server.Dispose();
-               }
-               catch (Exception ex2)
-               {
-                  Logger.Log(ex2.Message + Environment.NewLine + ex2.StackTrace);
-               }
-               Logger.Log(ex.Message + Environment.NewLine + ex.StackTrace);
-            }
-         }
-         Logger.WriteLineWithColor($"MTP server started on {IPAddress.Any}:{_MtSrvPort}", ConsoleColor.Green);
-         Logger.WriteLineWithColor($"mtproto://127.0.0.1:{_MtSrvPort} secret: 437574654C6F63616C50726F78792121", ConsoleColor.Green);
+         //for (int i = 0; i <= 50; i++)
+         //{
+         //   if (i == 50)
+         //   {
+         //      Logger.Log("Couldn't bind the MtProto server");
+         //      throw new Exception("Couldn't bind the MtProto server");
+         //   }
+         //   try
+         //   {
+         //      MtServer = new TcpListener(IPAddress.Any, _MtSrvPort);
+         //      MtServer.Server.NoDelay = true;
+         //      MtServer.Start();
+         //      break;
+         //   }
+         //   catch (SocketException ex)
+         //   {
+         //      _MtSrvPort++;
+         //      try
+         //      {
+         //         MtServer.Stop();
+         //         MtServer.Server.Dispose();
+         //      }
+         //      catch (Exception ex2)
+         //      {
+         //         Logger.Log(ex2.Message + Environment.NewLine + ex2.StackTrace);
+         //      }
+         //      Logger.Log(ex.Message + Environment.NewLine + ex.StackTrace);
+         //   }
+         //}
+         //Logger.WriteLineWithColor($"MTP server started on {IPAddress.Any}:{_MtSrvPort}", ConsoleColor.Green);
+         //Logger.WriteLineWithColor($"mtproto://127.0.0.1:{_MtSrvPort} secret: 437574654C6F63616C50726F78792121", ConsoleColor.Green);
 
          for (int i = 0; i <= 50; i++)
          {

@@ -45,7 +45,7 @@
                   <TextBox BorderThickness="0" Margin="3" x:Name="HTTPProxyAddress"
                      IsReadOnly="True" Text="-"/>
                   <TextBox BorderThickness="0" Margin="3" x:Name="MTProxyAddress"
-     IsReadOnly="True" Text="-"/>
+     IsReadOnly="True" Text="-" Visibility="Collapsed"/>
                </StackPanel>
             </GroupBox>
          </StackPanel>
