@@ -82,6 +82,21 @@ namespace MozUtil
 
       private int _HttpPort;
       public int HTTPPort { get { return _HttpPort; } }
+      private int _MtProtoPort;
+
+      public int MtProtoPort
+      {
+         get { return _MtProtoPort; }
+         set { _MtProtoPort = value; }
+      }
+      private string _MtSecret = "437574654C6F63616C50726F78792121";
+
+      public string MtProSecret
+      {
+         get { return _MtSecret; }
+         set { _MtSecret = value; }
+      }
+
 
       public int TotalConnections => MClient.ConnectiounsCount;
       public byte TotalChannels => MClient.ChannelsCount;
@@ -376,10 +391,11 @@ namespace MozUtil
          }
       }
 
-      private void MClient_PortsChanged(object? sender, Tuple<int, int> e)
+      private void MClient_PortsChanged(object? sender, Tuple<int, int,int> e)
       {
          this._SocksPort = e.Item1;
          this._HttpPort = e.Item2;
+         this._MtProtoPort = e.Item3;
       }
 
       private async void Program_ServerCommandOverHTTP(object? sender, byte[] e)

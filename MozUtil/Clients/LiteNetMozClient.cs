@@ -33,9 +33,10 @@ namespace MozUtil.Clients
       private string LNConnectionKey;
       private int ReconRetries;
       private TcpListener TcpServer;
+      private TcpListener MtServer;
 
       public LiteNetMozClient(IPEndPoint LocalEP, IPEndPoint ServerEP, byte MaxChannelCount,
-         int TcpListenPort = 64900, int HttpProxyListenPort = 63899, int maxConRetires = 5)
+         int TcpListenPort = 64900, int HttpProxyListenPort = 63899, int maxConRetires = 5, int MtProxyListenPort = -1)
       {
          LocalEndPoint = LocalEP;
          ServerEndPoint = ServerEP;
@@ -43,6 +44,11 @@ namespace MozUtil.Clients
          _HttpListenPort = HttpProxyListenPort;
          MaxConnectionRetries = maxConRetires;
          ChannelsCount = MaxChannelCount;
+         if (MtProxyListenPort == -1)
+         {
+            MtProxyListenPort = TcpListenPort - 50;
+         }
+         _MtSrvPort = MtProxyListenPort;
          //MaxOutboundPackets = (int)Math.Ceiling((double)(32 / ChannelsCount));
          MaxOutboundPackets = 50;
       }
@@ -54,13 +60,21 @@ namespace MozUtil.Clients
       private int _HttpListenPort;
       public int HttpListenPort { get { return _HttpListenPort; } }
 
+      private int _MtSrvPort;
+
+      public int MtServerPort
+      {
+         get { return _MtSrvPort; }
+         set { _MtSrvPort = value; }
+      }
+
       public bool isRunning => LiteNetManager.IsRunning;
       public NetStatistics NetStats => LiteNetManager.Statistics;
       public int ConnectiounsCount => Connections.Count;
       public int MaxOutboundPackets { get; set; }
       public event EventHandler<int>? LatencyUpdate;
       public event EventHandler<StatusResult>? StatusUpdate;
-      public event EventHandler<Tuple<int, int>>? PortsChanged;
+      public event EventHandler<Tuple<int, int, int>>? PortsChanged;
       public event EventHandler<ServerStatusInformation>? ServerStatusInformationUpdated;
       public event EventHandler? HttpKeepAliveRequested;
       public bool EnableServerStatusInformationStreamingForPeer(int PeerID = -1, int interval = 1000)
@@ -94,6 +108,7 @@ namespace MozUtil.Clients
          foreach (var item in Connections.Values) item.Close();
          if (HttpProxy != null) HttpProxy.StopInternalServer();
          TcpServer.Stop();
+         MtServer.Stop();
          StatusUpdate?.Invoke(this, StatusResult.UDPDisconnected);
       }
 
@@ -131,6 +146,13 @@ namespace MozUtil.Clients
                      ServerStatusInformationUpdated?.Invoke(this, SSI);
                      break;
                   case ServerCommands.EndToEndPipeCreationResult:
+                     if (RecData[6] == 255)//MtProtoDesu
+                     {
+                        MREForMtProtoCreation.Set();
+                        //Console.Beep(2500, 100);
+
+                        //Console.Beep();
+                     }
                      break;
                   case ServerCommands.KeepAlive:
                      HttpKeepAliveRequested?.Invoke(this, EventArgs.Empty);
@@ -157,7 +179,7 @@ namespace MozUtil.Clients
          //NMHolder._Peers.Add(peer);
          //}
          ReconRetries = 0;
-         Logger.Log($"Connected to the server: {peer.Id}");
+         //Logger.Log($"Connected to the server: {peer.Id} MTU: {peer.Mtu.ToString()}");
          StatusUpdate?.Invoke(this, StatusResult.UDPConnected);
       }
 
@@ -477,7 +499,7 @@ namespace MozUtil.Clients
          while (LiteNetManager.ConnectedPeersCount == 0) await Task.Delay(100);
          await RunInternalServerAsync();
       }
-
+      ManualResetEvent MREForMtProtoCreation = new ManualResetEvent(false);
       private async Task RunInternalServerAsync()
       {
          for (int i = 0; i < ChannelsCount; i++) ChannelConnectionCount.Add((byte)i, 0);
@@ -513,9 +535,39 @@ namespace MozUtil.Clients
                Logger.Log(ex.Message + Environment.NewLine + ex.StackTrace);
             }
          }
-
          Logger.WriteLineWithColor($"Socks5 server started on {IPAddress.Any}:{TcpListenPort}", ConsoleColor.Green);
          Logger.WriteLineWithColor($"socks5://127.0.0.1:{TcpListenPort}", ConsoleColor.Green);
+         for (int i = 0; i <= 50; i++)
+         {
+            if (i == 50)
+            {
+               Logger.Log("Couldn't bind the MtProto server");
+               throw new Exception("Couldn't bind the MtProto server");
+            }
+            try
+            {
+               MtServer = new TcpListener(IPAddress.Any, _MtSrvPort);
+               MtServer.Server.NoDelay = true;
+               MtServer.Start();
+               break;
+            }
+            catch (SocketException ex)
+            {
+               _MtSrvPort++;
+               try
+               {
+                  MtServer.Stop();
+                  MtServer.Server.Dispose();
+               }
+               catch (Exception ex2)
+               {
+                  Logger.Log(ex2.Message + Environment.NewLine + ex2.StackTrace);
+               }
+               Logger.Log(ex.Message + Environment.NewLine + ex.StackTrace);
+            }
+         }
+         Logger.WriteLineWithColor($"MTP server started on {IPAddress.Any}:{_MtSrvPort}", ConsoleColor.Green);
+         Logger.WriteLineWithColor($"mtproto://127.0.0.1:{_MtSrvPort} secret: 437574654C6F63616C50726F78792121", ConsoleColor.Green);
 
          for (int i = 0; i <= 50; i++)
          {
@@ -537,18 +589,85 @@ namespace MozUtil.Clients
          Logger.WriteLineWithColor($"HTTP server started on {IPAddress.Any}:{HttpListenPort}", ConsoleColor.Green);
          Logger.WriteLineWithColor($"Http://127.0.0.1:{HttpProxy.InternalServerPort}", ConsoleColor.Green);
          //Logger.Log(HttpProxy.ToString());
-         PortsChanged?.Invoke(this, new Tuple<int, int>(TcpListenPort, HttpListenPort));
+         PortsChanged?.Invoke(this, new Tuple<int, int, int>(TcpListenPort, HttpListenPort, MtServerPort));
          ushort ConnectionID = 1;
+         object _LockObj = new object();
+         Task MtProxyTask = Task.Run(async () =>
+         {
+            while (LiteNetManager.ConnectedPeersCount != 0 || ReconRetries < MaxConnectionRetries)
+            {
+               var cli = await MtServer.AcceptTcpClientAsync();
+               ushort MyConnectionID = 0;
+               lock (_LockObj)
+               {
+                  if (ConnectionID == ushort.MaxValue)
+                  {
+                     ConnectionID = 1;
+                  }
+                  while (Connections.ContainsKey((ushort)ConnectionID)) ConnectionID++;
 
+                  MyConnectionID = ConnectionID;
+                  ConnectionID++;
+               }
+               _ = Task.Run(async () =>
+                 {
+                    try
+                    {
+                       List<NetPeer> ConnectedPeers = new List<NetPeer>();
+                       LiteNetManager.GetPeersNonAlloc(ConnectedPeers, ConnectionState.Connected);
+                       int PeerID = ConnectedPeers[0].Id;
+                       byte[] SendBuffer = new byte[8];
+                       byte[] CMDB = BitConverter.GetBytes((int)ClientCommands.NewMtProtoPipe);
+                       Array.Copy(CMDB, 0, SendBuffer, 4, CMDB.Length);
+                       byte[] ConID = BitConverter.GetBytes(ConnectionID);
+                       Array.Copy(ConID, 0, SendBuffer, 6, ConID.Length);
+                       LiteNetManager.GetPeerById(PeerID).Send(SendBuffer, DeliveryMethod.ReliableUnordered);
+                       byte SelectedChannel = 0;
+                       lock (ChannelConnectionCount)
+                       {
+                          short Lowest = ChannelConnectionCount.Values.Min();
+                          SelectedChannel = ChannelConnectionCount.FirstOrDefault(x => x.Value == Lowest).Key;
+                       }
+                       //Console.Beep(1000, 100);
+                       LiteNetManager.GetPeerById(PeerID).Send(SendBuffer, SelectedChannel, DeliveryMethod.ReliableOrdered);
+                       MREForMtProtoCreation.Reset();
+                       bool res = MREForMtProtoCreation.WaitOne(5000);
+                       //Console.Beep(5000, 100);
+
+                       //if (res == false)
+                       //{
+                       //   cli.Dispose();
+                       //   continue;
+                       //}
+                    }
+                    catch (Exception ex)
+                    {
+                       Logger.LogException(ex);
+                    }
+                    HandleClientAsync(cli, (ushort)MyConnectionID);
+                 });
+               //Interlocked.Increment(ref ConnectionID);
+               //HandleClient(await Srv.AcceptTcpClientAsync());
+            }
+         });
          StatusUpdate?.Invoke(this, StatusResult.InternalServerStarted);
          //while (!CTS.IsCancellationRequested)
          try
          {
             while (LiteNetManager.ConnectedPeersCount != 0 || ReconRetries < MaxConnectionRetries)
             {
-               while (Connections.ContainsKey(ConnectionID)) ConnectionID++;
-               HandleClientAsync(await TcpServer.AcceptTcpClientAsync(), ConnectionID);
-               ConnectionID++;
+               var cli = await TcpServer.AcceptTcpClientAsync();
+               lock (_LockObj)
+               {
+                  if (ConnectionID == ushort.MaxValue)
+                  {
+                     ConnectionID = 1;
+                  }
+                  while (Connections.ContainsKey((ushort)ConnectionID)) ConnectionID++;
+                  HandleClientAsync(cli, (ushort)ConnectionID);
+                  ConnectionID++;
+               }
+               //Interlocked.Increment(ref ConnectionID);
                //HandleClient(await Srv.AcceptTcpClientAsync());
             }
          }

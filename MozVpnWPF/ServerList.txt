@@ -5,3 +5,4 @@ http://127.0.0.1:5209/
 https://dirtpxnetcore.chbk.run/
 https://irpxdotnetproj.chbk.run/
 http://blackordak-001-site1.ctempurl.com/
+http://PxTestSrv.somee.com/

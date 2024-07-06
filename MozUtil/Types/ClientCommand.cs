@@ -116,6 +116,7 @@ namespace MozUtil.Types
       //Channel number (current client),ProtocolType(int from enum),
       //Reliability if protocoltype is udp(ignored if tcp)(int from enum)
       //OR (Not decided yet) ASCII encoded destination "ChannelNumber\nIP:Port\nProtocol:reliability(ignoredIfTCP)"
-      OpenEndToEndCustomPipe
+      OpenEndToEndCustomPipe,
+      NewMtProtoPipe
    }
 }

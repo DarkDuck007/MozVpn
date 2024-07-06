@@ -43,6 +43,7 @@ namespace MozVpnWPF
       TransportMode uMode = TransportMode.LiteNet;//Default
       public MainWindow()
       {
+         this.Title = "MOZ";
          InitializeComponent();
          ToggleServerConnectionBtn.Content = "Connect";
          OneSecondTimer = new Timer(OneSecondTimerCallback, null, 1000, 1000);
@@ -195,10 +196,12 @@ namespace MozVpnWPF
                case StatusResult.InternalServerStopped:
                   SocksProxyAddress.Text = "-";
                   HTTPProxyAddress.Text = "-";
+                  MTProxyAddress.Text = "-";
                   break;
                case StatusResult.InternalServerStarted:
                   SocksProxyAddress.Text = "socks5://127.0.0.1:" + Manager.SocksPort;
                   HTTPProxyAddress.Text = "http://127.0.0.1:" + Manager.HTTPPort;
+                  MTProxyAddress.Text = $"https://t.me/proxy?server=localhost&port={Manager.MtProtoPort}&secret={Manager.MtProSecret}";
                   break;
                case StatusResult.UDPConnected:
                   UDPStatusLabel.Text = "Connected";

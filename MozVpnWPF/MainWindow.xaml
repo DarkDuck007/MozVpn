@@ -6,7 +6,7 @@
         xmlns:ScottPlot="clr-namespace:ScottPlot;assembly=ScottPlot.WPF"
         xmlns:local="clr-namespace:MozVpnWPF" Closing="Window_Closing"
         mc:Ignorable="d" FontSize="16"
-        Title="MozVpn" Height="600" Width="450">
+        Title="MozVpn" Height="620" Width="450">
    <Border Padding="5">
       <Grid>
          <Grid.ColumnDefinitions>
@@ -44,6 +44,8 @@
                      IsReadOnly="True" Text="-"/>
                   <TextBox BorderThickness="0" Margin="3" x:Name="HTTPProxyAddress"
                      IsReadOnly="True" Text="-"/>
+                  <TextBox BorderThickness="0" Margin="3" x:Name="MTProxyAddress"
+     IsReadOnly="True" Text="-"/>
                </StackPanel>
             </GroupBox>
          </StackPanel>
@@ -85,7 +87,7 @@
                      <ComboBoxItem>BALETUN</ComboBoxItem>
                   </ComboBox>
                   <TextBlock Text="Max Channels:" Grid.Row="2" Margin="3" />
-                  <ComboBox Margin="3" Grid.Row="2" Grid.Column="1" x:Name="MaxChannelsComboBox" SelectedIndex="7" ItemsSource="{Binding Path=(local:StaticInformation.PossibleChannelCount)}"></ComboBox>
+                  <ComboBox Margin="3" Grid.Row="2" Grid.Column="1" x:Name="MaxChannelsComboBox" SelectedIndex="31" ItemsSource="{Binding Path=(local:StaticInformation.PossibleChannelCount)}"></ComboBox>
                   <TextBlock Text="Server Address:" Grid.Row="3" Margin="3"/>
                   <ComboBox Margin="3" IsEditable="True" Grid.Row="3" Grid.Column="1" x:Name="ServerSelectionComboBox" SelectedIndex="0" ItemsSource="{Binding Path=(local:StaticInformation.ServerList)}"></ComboBox>
 
