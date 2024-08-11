@@ -103,7 +103,7 @@ namespace MozVpnWPF
                bool LocalServer = ServerURL == "http://127.0.0.1:5209/";
 
                Manager = new MozManager(ServerURL, MaxChannels, StunServer, PreferredSocksPort, PreferredHTTPPort, 10000,
-                  LocalServer, uMode, EnableProxy, ProxyAdr, ForceActSymmetricCheckBox.IsChecked ?? false);
+                  LocalServer, uMode, EnableProxy, ProxyAdr, ForceActSymmetricCheckBox.IsChecked ?? false, SkipStun.IsChecked ?? false);
                Manager.NewLogArrived += Manager_NewLogArrived;
                Manager.LatencyUpdated += Manager_LatencyUpdated;
                Manager.StatusUpdated += Manager_StatusUpdated;

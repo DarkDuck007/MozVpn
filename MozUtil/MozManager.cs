@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -38,11 +39,11 @@ namespace MozUtil
       private int[] SymPunchedPorts;
       private readonly TransportMode uMode;
       private HttpWebRequest WebReq;
-
+      private bool _SkipStun;
       public MozManager(string ServerHost, byte MaxChannels, string StunServerAddress, int SocksPort = 63600,
          int HttpPort = 63700,
          int HolePunchTimeout = 10000, bool IsServerLocal = false, TransportMode ConnectionMode = TransportMode.LiteNet,
-         bool useProxy = false, string? proxyAddress = null, bool ForceActSymmetric = false)
+         bool useProxy = false, string? proxyAddress = null, bool ForceActSymmetric = false, bool SkipStun = false)
       {
          ServerURL = ServerHost;
          ChannelCount = MaxChannels;
@@ -56,6 +57,7 @@ namespace MozUtil
          _UseProxy = useProxy;
          _ProxyAddress = proxyAddress;
          _ForceSymmetric = ForceActSymmetric;
+         _SkipStun = SkipStun;
       }
       public NetStatistics? LiteNetStats
       {
@@ -130,6 +132,63 @@ namespace MozUtil
       public event EventHandler<int>? LatencyUpdated;
       public event EventHandler<StatusResult>? StatusUpdated;
 
+      private async Task<bool> UpdateStun(int StunStartTimeout = 400, int StunTimeoutIncrementor = 1000, int MaxTimeout = 6000)
+      {
+         if (_SkipStun)
+         {
+            Socket S = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+            S.Bind(new IPEndPoint(IPAddress.Any, 0));
+            int LPort = (S.LocalEndPoint as IPEndPoint).Port;
+            S.Dispose();
+            stunResult = new STUNQueryResult
+            {
+               LocalEndPoint = new IPEndPoint(IPAddress.Parse("0.0.0.0"), LPort),
+               PublicEndPoint = new IPEndPoint(IPAddress.Parse("0.0.0.0"), LPort)
+            };
+            return true;
+         }
+         int StunTimeout = StunStartTimeout;
+         while (true)
+         {
+            stunClient = new UdpClient();
+            if (LocalMode)
+            {
+               await stunClient.SendAsync(new byte[] { 0 }, 1, new IPEndPoint(IPAddress.Loopback, 65535));
+               stunResult = new STUNQueryResult
+               {
+                  LocalEndPoint = new IPEndPoint(IPAddress.Parse("127.0.0.1"), 0),
+                  PublicEndPoint = new IPEndPoint(IPAddress.Parse("127.0.0.1"), 0)
+               };
+               break;
+            }
+
+            stunResult = MozStun.GetStunResult(stunClient.Client, _StunServerAddress, StunTimeout);
+            if (stunResult.QueryError == STUNQueryError.Success)
+            {
+               StatusUpdated?.Invoke(this, StatusResult.StunSuccess);
+               break;
+            }
+
+            if (stunResult.QueryError == STUNQueryError.Timedout)
+            {
+               stunClient.Dispose();
+               Logger.Log("Stun query timed out after :" + StunTimeout);
+               StunTimeout += StunTimeoutIncrementor;
+               if (StunTimeout > MaxTimeout)
+               {
+                  Logger.Log("Stun query failed due to timeouts");
+                  StatusUpdated?.Invoke(this, StatusResult.StunFailed);
+                  return false;
+               }
+            }
+            else
+            {
+               StatusUpdated?.Invoke(this, StatusResult.StunFailed);
+               throw new Exception("StunQueryError: " + stunResult.QueryError + stunResult.ServerErrorPhrase);
+            }
+         }
+         return true;
+      }
       public async Task<bool> InitiateConnection()
       {
          Logger.OnNewLogArrived += (Sender, e) => { NewLogArrived?.Invoke(Sender, e); };
@@ -152,48 +211,8 @@ namespace MozUtil
             else if (uMode == TransportMode.LiteNet || uMode == TransportMode.Normal)
             {
                StatusUpdated?.Invoke(this, StatusResult.SendingStun);
-               int StunTimeout = 400;
-               int StunTimeoutIncrementor = 1000;
-               while (true)
-               {
-                  stunClient = new UdpClient();
-                  if (LocalMode)
-                  {
-                     await stunClient.SendAsync(new byte[] { 0 }, 1, new IPEndPoint(IPAddress.Loopback, 65535));
-                     stunResult = new STUNQueryResult
-                     {
-                        LocalEndPoint = new IPEndPoint(IPAddress.Parse("127.0.0.1"), 0),
-                        PublicEndPoint = new IPEndPoint(IPAddress.Parse("127.0.0.1"), 0)
-                     };
-                     break;
-                  }
-
-                  stunResult = MozStun.GetStunResult(stunClient.Client, _StunServerAddress, StunTimeout);
-                  if (stunResult.QueryError == STUNQueryError.Success)
-                  {
-                     StatusUpdated?.Invoke(this, StatusResult.StunSuccess);
-                     break;
-                  }
-
-                  if (stunResult.QueryError == STUNQueryError.Timedout)
-                  {
-                     stunClient.Dispose();
-                     Logger.Log("Stun query timed out after :" + StunTimeout);
-                     StunTimeout += StunTimeoutIncrementor;
-                     if (StunTimeout > 6000)
-                     {
-                        Logger.Log("Stun query failed due to timeouts");
-                        StatusUpdated?.Invoke(this, StatusResult.StunFailed);
-                        return false;
-                     }
-                  }
-                  else
-                  {
-                     StatusUpdated?.Invoke(this, StatusResult.StunFailed);
-                     throw new Exception("StunQueryError: " + stunResult.QueryError + stunResult.ServerErrorPhrase);
-                  }
-               }
-
+               if (await UpdateStun() == false)
+                  return false;
                if (LocalMode)
                {
                   stunResult.PublicEndPoint.Address = IPAddress.Parse("127.0.0.1");
@@ -391,7 +410,7 @@ namespace MozUtil
          }
       }
 
-      private void MClient_PortsChanged(object? sender, Tuple<int, int,int> e)
+      private void MClient_PortsChanged(object? sender, Tuple<int, int, int> e)
       {
          this._SocksPort = e.Item1;
          this._HttpPort = e.Item2;
@@ -456,6 +475,18 @@ namespace MozUtil
                   udpConnectionInfo udpInfo = MozStatic.DeserializeUdpConnectionInfo(e, 1);
                   _ = StartUdpTun(udpInfo);
                   break;
+               case ServerCommands.AttemptReconnectLiteNet:
+                  udpConnectionInfo udpReconInfo = MozStatic.DeserializeUdpConnectionInfo(e, 1);
+                  await UpdateStun(500, 1000, 1000);
+                  if (MClient is not null)
+                  {
+                     MClient.AttemptReconnect(udpReconInfo, stunResult.NATType);
+                  }
+                  else
+                  {
+                     Logger.Log("We're fucked.");
+                  }
+                  break;
                case ServerCommands.KeepAlive:
                   //Do nothing
                   break;
@@ -464,19 +495,26 @@ namespace MozUtil
       }
 
       public async Task PollHttpServer(byte[] SendData, TransportMode Mode, bool isConnected = false,
-         CancellationToken CT = default)
+         CancellationToken CT = default, bool IsReconnect = false, string ReconConnectionKey = "")
       {
          try
          {
             string url = ServerURL;
-            switch (Mode)
+            if (!IsReconnect)
             {
-               case TransportMode.Normal:
-                  url += "INIT";
-                  break;
-               case TransportMode.LiteNet:
-                  url += "InitLN";
-                  break;
+               switch (Mode)
+               {
+                  case TransportMode.Normal:
+                     url += "INIT";
+                     break;
+                  case TransportMode.LiteNet:
+                     url += "InitLN";
+                     break;
+               }
+            }
+            else
+            {
+               url += "ReconLN";
             }
 
             StatusUpdated?.Invoke(this, StatusResult.HTTPConnecting);
@@ -494,6 +532,13 @@ namespace MozUtil
             //WebReq.Proxy = new WebProxy("127.0.0.1", 2081);
             WebReq.Headers.Add("isConnected", isConnected.ToString());
             WebReq.Headers.Add("KeepAlive", "false");
+
+            if (IsReconnect)
+            {
+               WebReq.Headers.Add("KeepAlive", "false");
+               WebReq.Headers.Add("ConKey", ReconConnectionKey);
+            }
+
             DataPadding = RandomGen.Next(20, 1000);
             WebReq.Headers.Add("PD", DataPadding.ToString());
             //WebReq.KeepAlive = false;

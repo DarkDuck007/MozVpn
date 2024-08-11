@@ -107,8 +107,11 @@ namespace MozUtil.Clients
          });
          foreach (var item in Connections.Values) item.Close();
          if (HttpProxy != null) HttpProxy.StopInternalServer();
-         TcpServer.Stop();
-         MtServer.Stop();
+         if (TcpServer is not null)
+            TcpServer.Stop();
+         if (MtServer is not null)
+            MtServer.Stop();
+
          StatusUpdate?.Invoke(this, StatusResult.UDPDisconnected);
       }
 
@@ -171,7 +174,11 @@ namespace MozUtil.Clients
          HandleIncomingUdpDataAsync(ConID, channelNumber, RecData[2..], peer).Wait();
          //throw new NotImplementedException();
       }
-
+      public async void AttemptReconnect(udpConnectionInfo ReconInfo, STUNNATType NatType)
+      {
+         if (LiteNetManager.ConnectedPeersCount == 0) StatusUpdate?.Invoke(this, StatusResult.UDPReconnecting);
+         await Start(ReconInfo, NatType, true);
+      }
       public void OnPeerConnected(NetPeer peer)
       {
          //if (!NMHolder._Peers.Contains(peer))
@@ -188,8 +195,10 @@ namespace MozUtil.Clients
          if (ReferenceEquals(LiteNetManager, null)) return;
          if (LiteNetManager.IsRunning)
          {
-            if (ReconRetries < 2)
+            if (ReconRetries < MaxConnectionRetries)
             {
+               if (LiteNetManager.ConnectedPeersCount == 0) StatusUpdate?.Invoke(this, StatusResult.UDPReconnecting);
+
                LiteNetManager.Connect(ServerEndPoint, LNConnectionKey);
                ReconRetries++;
             }
@@ -227,17 +236,17 @@ namespace MozUtil.Clients
          //throw new NotImplementedException();
       }
 
-      public async Task Start(udpConnectionInfo udpInfo, STUNNATType NatType)
+      public async Task Start(udpConnectionInfo udpInfo, STUNNATType NatType, bool IsReconnect = false)
       {
          try
          {
             StatusUpdate?.Invoke(this, StatusResult.UDPConnecting);
             if (udpInfo.ConnectionKey == null) throw new ArgumentException("No connection key was supplied.");
             if (NatType == STUNNATType.Symmetric)
-               await StartSymmetric(udpInfo);
+               await StartSymmetric(udpInfo, IsReconnect);
             //throw new NotImplementedException();
             else
-               await StartNonSymmetric(udpInfo);
+               await StartNonSymmetric(udpInfo, IsReconnect);
          }
          catch (Exception ex)
          {
@@ -245,7 +254,7 @@ namespace MozUtil.Clients
          }
       }
 
-      private async Task StartSymmetric(udpConnectionInfo udpInfo)
+      private async Task StartSymmetric(udpConnectionInfo udpInfo, bool isReconnect = false)
       {
          if (udpInfo.ConnectionKey == null) throw new ArgumentException("No connection key was supplied.");
          LNConnectionKey = udpInfo.ConnectionKey;
@@ -467,29 +476,33 @@ namespace MozUtil.Clients
          }
       }
 
-      private async Task StartNonSymmetric(udpConnectionInfo udpInfo)
+      private async Task StartNonSymmetric(udpConnectionInfo udpInfo, bool isReconnect = false)
       {
          if (udpInfo.ConnectionKey == null) throw new ArgumentException("No connection key was supplied.");
          LNConnectionKey = udpInfo.ConnectionKey;
-         LiteNetManager = new NetManager(this)
+
+         if (!isReconnect)
          {
-            ChannelsCount = ChannelsCount,
-            UnsyncedEvents = true,
-            AutoRecycle = true,
-            UpdateTime = 1,
-            SimulatePacketLoss = false,
-            SimulateLatency = false,
-            SimulationPacketLossChance = 5,
-            SimulationMinLatency = 200,
-            SimulationMaxLatency = 300,
-            EnableStatistics = true,
-            DisconnectTimeout = 20000,
-            PingInterval = 5000,
-            MaxConnectAttempts = MaxConnectionRetries
-         };
+            LiteNetManager = new NetManager(this)
+            {
+               ChannelsCount = ChannelsCount,
+               UnsyncedEvents = true,
+               AutoRecycle = true,
+               UpdateTime = 1,
+               SimulatePacketLoss = false,
+               SimulateLatency = false,
+               SimulationPacketLossChance = 5,
+               SimulationMinLatency = 200,
+               SimulationMaxLatency = 300,
+               EnableStatistics = true,
+               DisconnectTimeout = 20000,
+               PingInterval = 5000,
+               MaxConnectAttempts = MaxConnectionRetries
+            };
+            LiteNetManager.Start(LocalEndPoint.Port);
+         }
          //NMHolder._NetManagers.Add(NM1);
          //NM1.Start(LocalEndPoint.Address, IPAddress.IPv6Any, LocalEndPoint.Port);
-         LiteNetManager.Start(LocalEndPoint.Port);
          //byte[] UnconMes = new byte[2] { 255, 255 };
          //for (int i = 0; i < 3; i++)
          //{
@@ -497,7 +510,10 @@ namespace MozUtil.Clients
          //}
          LiteNetManager.Connect(ServerEndPoint, LNConnectionKey);
          while (LiteNetManager.ConnectedPeersCount == 0) await Task.Delay(100);
-         await RunInternalServerAsync();
+         if (!isReconnect)
+         {
+            await RunInternalServerAsync();
+         }
       }
       ManualResetEvent MREForMtProtoCreation = new ManualResetEvent(false);
       private async Task RunInternalServerAsync()
@@ -585,6 +601,7 @@ namespace MozUtil.Clients
             {
                _HttpListenPort++;
             }
+
          }
          Logger.WriteLineWithColor($"HTTP server started on {IPAddress.Any}:{HttpListenPort}", ConsoleColor.Green);
          Logger.WriteLineWithColor($"Http://127.0.0.1:{HttpProxy.InternalServerPort}", ConsoleColor.Green);
@@ -675,6 +692,7 @@ namespace MozUtil.Clients
          {
          }
          StatusUpdate?.Invoke(this, StatusResult.InternalServerStopped);
+         Logger.Log("Internal server stopped.");
          StatusUpdate?.Invoke(this, StatusResult.UDPDisconnected);
       }
 

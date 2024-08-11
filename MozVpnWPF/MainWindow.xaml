@@ -24,6 +24,7 @@
             <CheckBox Margin="3" FontSize="12" x:Name="ForceActSymmetricCheckBox">FASymmetric</CheckBox>
             <CheckBox Margin="3" x:Name="TunModeCheckBox" IsEnabled="False">Tun Mode</CheckBox>
             <CheckBox Margin="3" x:Name="FuckEmPorts" IsEnabled="True">Fuck Ports</CheckBox>
+            <CheckBox Margin="3" x:Name="SkipStun" IsEnabled="True">Skip Stun</CheckBox>
          </StackPanel>
          <StackPanel Grid.Row="0" Grid.Column="1">
             <StackPanel Orientation="Vertical">

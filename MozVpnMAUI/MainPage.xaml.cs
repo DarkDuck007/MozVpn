@@ -50,7 +50,7 @@ namespace MozVpnMAUI
          ConnectionTypeComboBox.SelectedIndex = 0;
          StunServerSelectorComboBox.SelectedIndex = 0;
          MaxChannelsComboBox.ItemsSource = StaticInformation.PossibleChannelCount;
-         MaxChannelsComboBox.SelectedIndex = 7;
+         //MaxChannelsComboBox.SelectedIndex = 7;
          ServerSelectionComboBox.ItemsSource = StaticInformation.ServerList;
          ServerSelectionComboBox.SelectedIndex = 0;
 

@@ -11,6 +11,7 @@ namespace MozUtil.NatUtils
       BeginUdpClient,
       ServerStatusUpdate,
       EndToEndPipeCreationResult,
+      AttemptReconnectLiteNet,
       KeepAlive = 255
    }
 

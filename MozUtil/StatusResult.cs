@@ -15,6 +15,7 @@
       HTTPError,
       StunT,
       InternalServerStarted,
-      InternalServerStopped
+      InternalServerStopped,
+      UDPReconnecting
    }
 }
