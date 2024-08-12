@@ -181,6 +181,7 @@ namespace MozUtil.Clients
       }
       public void OnPeerConnected(NetPeer peer)
       {
+         Logger.Log("Peer con");
          //if (!NMHolder._Peers.Contains(peer))
          //{
          //NMHolder._Peers.Add(peer);
@@ -220,12 +221,15 @@ namespace MozUtil.Clients
       public void OnNetworkReceiveUnconnected(IPEndPoint remoteEndPoint, NetPacketReader reader,
          UnconnectedMessageType messageType)
       {
+         Logger.Log("Unconmsg");
+
          //True udp packet (Shadowsocks, wireguard, etc)
          //throw new NotImplementedException();
       }
 
       public void OnNetworkLatencyUpdate(NetPeer peer, int latency)
       {
+         //Logger.Log("NetLatUp "+latency);
          //Logger.Log($"Latency: {latency * 2} PL%:{peer.Statistics.PacketLossPercent}");
          //throw new NotImplementedException();
          LatencyUpdate?.Invoke(peer.Id, latency);
@@ -233,6 +237,8 @@ namespace MozUtil.Clients
 
       public void OnConnectionRequest(ConnectionRequest request)
       {
+         Logger.Log("ConReq");
+
          //throw new NotImplementedException();
       }
 
@@ -345,7 +351,7 @@ namespace MozUtil.Clients
                   manager.ManualUpdate(WaitTime);
                }
 
-               if (WaitTime < 20) await Task.Delay(16);
+               if (WaitTime < 16) await Task.Delay(16);
                ST.Stop();
                WaitTime = (int)ST.ElapsedMilliseconds;
             }
