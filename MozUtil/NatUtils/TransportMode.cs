@@ -6,6 +6,7 @@
       Ruffles,
       LiteNet,
       TCP,
-      BaleTun
+      BaleTun,
+      UDPRelay
    }
 }

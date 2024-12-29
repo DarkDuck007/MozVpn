@@ -71,10 +71,14 @@ namespace MozUtil
       {
          if (message == null)
             return;
-         Console.WriteLine(DateTime.Now.ToString("HH:mm:ss:fff") + message);
+         Console.WriteLine(DateTime.Now.ToString("HH:mm:ss:fff")+" " + message);
          //LogString += message + "\n";
          AppendLog(message);
          //LogPath.Write(Encoding.UTF8.GetBytes(message));
+      }
+      public static void Log(Exception message)
+      {
+         Log(message.Message + Environment.NewLine + message.StackTrace);
       }
       public static void LogException(Exception message)
       {

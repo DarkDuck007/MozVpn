@@ -5,6 +5,7 @@ using ScottPlot;
 using STUN;
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
@@ -45,6 +46,7 @@ namespace MozVpnWPF
       {
          this.Title = "MOZ";
          InitializeComponent();
+         ActiveUdpRelays.ItemsSource = AruRelaysInfo;
          ToggleServerConnectionBtn.Content = "Connect";
          OneSecondTimer = new Timer(OneSecondTimerCallback, null, 1000, 1000);
       }
@@ -107,6 +109,7 @@ namespace MozVpnWPF
                Manager.NewLogArrived += Manager_NewLogArrived;
                Manager.LatencyUpdated += Manager_LatencyUpdated;
                Manager.StatusUpdated += Manager_StatusUpdated;
+               Manager.SubTunCreated += Manager_SubTunCreated;
                if (FuckEmPorts.IsChecked == true)
                {
                   Manager.symmetricConnectionClientCount = 3000;
@@ -150,6 +153,13 @@ namespace MozVpnWPF
             Logger.Log(ex.Message + ex.StackTrace);
          }
       }
+
+      private void Manager_SubTunCreated(object? sender, SubTunInfo e)
+      {
+         //int
+         throw new NotImplementedException();
+      }
+
       void ToggleOff()
       {
          EnableServerStatsUpdate.IsChecked = false;
@@ -441,6 +451,72 @@ namespace MozVpnWPF
             catch (Exception ex)
             {
                Logger.LogException(ex);
+            }
+         }
+      }
+
+
+      ObservableCollection<SubTunInfo> AruRelaysInfo = new ObservableCollection<SubTunInfo>();
+      private void CreateNewUdpRelayBtn_Click(object sender, RoutedEventArgs e)
+      {
+         string Endpoint = RelayEndpointtxt.Text;
+         if (!int.TryParse(RelayListenPorttxt.Text, out int ListenPort))
+         {
+            MessageBox.Show("You gotta put a NUMBER in the PORT field.", "Error code: 1D10T");
+            return;
+         }
+         if (ListenPort > 65535)
+         {
+            MessageBox.Show("Invalid port number (too big of a number)");
+         }
+         if (!isConnected)
+         {
+            MessageBox.Show("You gotta connect first.", "Error code: 1D10T");
+            return;
+         }
+         if (object.ReferenceEquals(Manager, null))
+         {
+            MessageBox.Show("Well there is something wrong with me...", "Error: The developer is idiot.");
+            return;
+         }
+         if (!object.ReferenceEquals(Manager.MClient, null))
+         {
+            if (!Manager.MClient.isRunning)
+            {
+               MessageBox.Show("You gotta have an active LiteNet Connection. or I'm an idiot.");
+               return;
+            }
+            //MessageBox.Show("You gotta be using a LiteNet Connection.");
+            //return;
+         } //Paranoid check moment.
+
+         if (Endpoint.Count(x => x == ':') != 1)
+         {
+            MessageBox.Show("Is that an IPV6 or some other weird type of shit? Not supported now.");
+            return;
+         }
+         string Hostname = Endpoint.Split(':')[0];
+         ushort DestinationPort = ((ushort)int.Parse(Endpoint.Split(":")[1]));
+         if (AruRelaysInfo.Count(x => x.LocalPort == ListenPort) > 0)
+         {
+            MessageBox.Show("A tunnel with this port is already added, try another port number.");
+            return;
+         }
+         SubTunInfo TunInfo = Manager.MClient.CreateNewUdpRelay(Hostname, DestinationPort, ListenPort);
+         //TunInfo.PropertyChanged += TunInfo_PropertyChanged;
+         AruRelaysInfo.Add(TunInfo);
+      }
+
+      private void ActiveUdpRelays_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+      {
+         if (ActiveUdpRelays.SelectedIndex != -1)
+         {
+            if (AruRelaysInfo[ActiveUdpRelays.SelectedIndex].Status == TunStatus.Disconnected)
+            {
+               SubTunInfo item = AruRelaysInfo[ActiveUdpRelays.SelectedIndex];
+               AruRelaysInfo.Remove(item);
+               SubTunInfo TunInfo = Manager.MClient.CreateNewUdpRelay(item.DestinationHostName, item.DestinationPort, item.LocalPort);
+               AruRelaysInfo.Add(TunInfo);
             }
          }
       }

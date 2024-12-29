@@ -16,6 +16,6 @@
       StunT,
       InternalServerStarted,
       InternalServerStopped,
-      UDPReconnecting
+      UDPReconnecting,
    }
 }

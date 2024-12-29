@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -35,6 +36,40 @@ namespace MozUtil.Types
       public static int ReadServerStatsRequestCommand(byte[] command, int Offset)
       {
          return BitConverter.ToInt32(command, Offset);
+      }
+      public static SubTunInfo ReadRelayRequestCommand(byte[] TunInfoBytes, int Offset)
+      {
+         SubTunInfo TunInfo = new SubTunInfo();
+         int Position = Offset;
+         TunInfo.ID = TunInfoBytes[Position];
+         Position += 1;
+         TunInfo.Type = (TunType)BitConverter.ToInt32(TunInfoBytes, Position);
+         Position += 4;
+         TunInfo.DestinationPort = BitConverter.ToUInt16(TunInfoBytes, Position);
+         Position += 2;
+         TunInfo.DestinationHostName = Encoding.ASCII.GetString(TunInfoBytes, Position, TunInfoBytes.Length - Position);
+         return TunInfo;
+      }
+      public static byte[] BuildRelayRequestCommand(SubTunInfo subTunInfo)
+      {
+         using (MemoryStream CommandStream = new MemoryStream())
+         {
+            byte[] EmptyBytes = new byte[4];//for the server to recognize it's a command...
+            CommandStream.Write(EmptyBytes);
+            byte[] CommandBytes = BitConverter.GetBytes((ushort)ClientCommands.CustomUdpRelay);
+            CommandStream.Write(CommandBytes);
+
+            byte[] IDbytes = new byte[1] { subTunInfo.ID };
+            CommandStream.Write(IDbytes);
+            byte[] Type = BitConverter.GetBytes(((int)subTunInfo.Type));
+            CommandStream.Write(Type);
+            byte[] DestPort = BitConverter.GetBytes(subTunInfo.DestinationPort);
+            CommandStream.Write(DestPort);
+            byte[] Destination = Encoding.ASCII.GetBytes(subTunInfo.DestinationHostName);
+            CommandStream.Write(Destination);
+            CommandStream.Flush();
+            return CommandStream.ToArray();
+         }
       }
       public static byte[] BuildCustomPipeCommand(CustomPipeInformation PipeInfo)
       {
@@ -115,8 +150,9 @@ namespace MozUtil.Types
       //Command value: Destination address family (ipv4 or v6), Destination IP, Destination port (Binary),
       //Channel number (current client),ProtocolType(int from enum),
       //Reliability if protocoltype is udp(ignored if tcp)(int from enum)
-      //OR (Not decided yet) ASCII encoded destination "ChannelNumber\nIP:Port\nProtocol:reliability(ignoredIfTCP)"
+      //OR (Not decided yet) ASCII encoded destination "ChannelNumber\nIP:DestPort\nProtocol:reliability(ignoredIfTCP)"
       OpenEndToEndCustomPipe,
-      NewMtProtoPipe
+      NewMtProtoPipe,
+      CustomUdpRelay
    }
 }

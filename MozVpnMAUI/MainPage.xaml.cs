@@ -45,12 +45,12 @@ namespace MozVpnMAUI
       {
          InitializeComponent();
          PlatformSpecific();
+         MaxChannelsComboBox.ItemsSource = StaticInformation.PossibleChannelCount;
          OneSecondTimer = new Timer(OneSecondTimerCallback, null, 1000, 1000);
          StunServerSelectorComboBox.ItemsSource = StaticInformation.StunServers;
          ConnectionTypeComboBox.SelectedIndex = 0;
          StunServerSelectorComboBox.SelectedIndex = 0;
-         MaxChannelsComboBox.ItemsSource = StaticInformation.PossibleChannelCount;
-         //MaxChannelsComboBox.SelectedIndex = 7;
+         MaxChannelsComboBox.SelectedIndex = 15;
          ServerSelectionComboBox.ItemsSource = StaticInformation.ServerList;
          ServerSelectionComboBox.SelectedIndex = 0;
 
@@ -130,6 +130,8 @@ namespace MozVpnMAUI
                   LocalServer = true;
                }
                Manager = new MozManager(ServerURL, MaxChannels, StunServer, 6075, 6085, 10000, LocalServer, uMode, EnableProxy, ProxyAdr);
+               Manager = new MozManager(ServerURL, MaxChannels, StunServer, 6075, 6085, 10000,
+                LocalServer, uMode, EnableProxy, ProxyAdr, FaSymCheckBox.IsChecked, SkipStunCheckbox.IsChecked);
                Manager.NewLogArrived += Manager_NewLogArrived;
                Manager.LatencyUpdated += Manager_LatencyUpdated;
                Manager.StatusUpdated += Manager_StatusUpdated;

@@ -36,6 +36,8 @@
                      <RowDefinition Height="Auto"/>
                      <RowDefinition Height="Auto"/>
                      <RowDefinition Height="Auto"/>
+                     <RowDefinition Height="Auto"/>
+                     <RowDefinition Height="Auto"/>
                   </Grid.RowDefinitions>
                   <Label Margin="3,-8" Grid.Column="0" Grid.Row="0" VerticalOptions="Center" Text="Proxy Mode" HorizontalOptions="Start"/>
                   <CheckBox Margin="3,-8" Grid.Column="1" Grid.Row="0" x:Name="ProxyModeCheckBox" HorizontalOptions="Start"
@@ -48,8 +50,11 @@
                      </CheckBox.IsEnabled>
                   </CheckBox>
 
-                  <Label Margin="3,-8" Grid.Column="0" Grid.Row="1" VerticalOptions="Center" Text="VPN Mode" HorizontalOptions="Start"/>
-                  <CheckBox Margin="3,-8" Grid.Column="1" Grid.Row="1" HorizontalOptions="Start" x:Name="TunModeCheckBox">
+                  <Label Margin="3,-8" Grid.Column="0" Grid.Row="1" VerticalOptions="Center" Text="FASym" HorizontalOptions="Start"/>
+                  <CheckBox Margin="3,-8" Grid.Column="1" Grid.Row="1" HorizontalOptions="Start" x:Name="FaSymCheckBox"/>
+
+                  <Label Margin="3,-8" Grid.Column="0" Grid.Row="2" VerticalOptions="Center" Text="VPN Mode" HorizontalOptions="Start"/>
+                  <CheckBox Margin="3,-8" Grid.Column="1" Grid.Row="2" HorizontalOptions="Start" x:Name="TunModeCheckBox">
                      <CheckBox.IsEnabled>
                         <OnPlatform x:TypeArguments="x:Boolean">
                            <On Platform="Android" Value="True"/>
@@ -58,11 +63,14 @@
                      </CheckBox.IsEnabled>
                   </CheckBox>
 
-                  <Label Margin="3,-8" Grid.Column="0" Grid.Row="2" VerticalOptions="Center" Text="Fuck Ports" HorizontalOptions="Start"/>
-                  <CheckBox Margin="3,-8" Grid.Column="1" Grid.Row="2" HorizontalOptions="Start" x:Name="FuckEmPorts"/>
+                  <Label Margin="3,-8" Grid.Column="0" Grid.Row="3" VerticalOptions="Center" Text="Fuck Ports" HorizontalOptions="Start"/>
+                  <CheckBox Margin="3,-8" Grid.Column="1" Grid.Row="3" HorizontalOptions="Start" x:Name="FuckEmPorts"/>
 
-                  <Label Margin="3,-8" Grid.Column="0" Grid.Row="3" VerticalOptions="Center" Text="Enable Log" HorizontalOptions="Start"/>
-                  <CheckBox Margin="3,-8" IsChecked="False" CheckedChanged="LogEnabledCheckBox_CheckedChanged" Grid.Column="1" Grid.Row="3" HorizontalOptions="Start" x:Name="LogEnabledCheckBox"/>
+                  <Label Margin="3,-8" Grid.Column="0" Grid.Row="4" VerticalOptions="Center" Text="SkipStun" HorizontalOptions="Start"/>
+                  <CheckBox Margin="3,-8" Grid.Column="1" Grid.Row="4" HorizontalOptions="Start" x:Name="SkipStunCheckbox"/>
+
+                  <Label Margin="3,-8" Grid.Column="0" Grid.Row="5" VerticalOptions="Center" Text="Enable Log" HorizontalOptions="Start"/>
+                  <CheckBox Margin="3,-8" IsChecked="False" CheckedChanged="LogEnabledCheckBox_CheckedChanged" Grid.Column="1" Grid.Row="5" HorizontalOptions="Start" x:Name="LogEnabledCheckBox"/>
                </Grid>
             </StackLayout>
          </Border>
@@ -138,7 +146,7 @@ TextColor="Red" Margin="3"/>
                      </Picker.Items>
                   </Picker>
                   <Label VerticalOptions="Center"  Text="Max Channels:" Grid.Row="2" Margin="3" />
-                  <Picker Margin="3" Grid.Row="2" Grid.Column="1" x:Name="MaxChannelsComboBox" SelectedIndex="15"></Picker>
+                  <Picker Margin="3" Grid.Row="2" Grid.Column="1" x:Name="MaxChannelsComboBox" SelectedIndex="31"></Picker>
                   <Label VerticalOptions="Center"  Text="Server Address:" Grid.Row="3" Margin="3"/>
                   <Picker Margin="3" Grid.Row="3" Grid.Column="1" x:Name="ServerSelectionComboBox" SelectedIndex="0"></Picker>
                </Grid>

@@ -381,9 +381,16 @@ namespace MozUtil.NatUtils
                   try
                   {
                      var res = await item.ReceiveAsync();
-                     Logger.WriteLineWithColor(
-                        $"Wow, Received data from {res.RemoteEndPoint} +{item.Client.LocalEndPoint} + {res.Buffer.Length}",
-                        ConsoleColor.Magenta);
+                     try
+                     {
+                        Logger.WriteLineWithColor(
+                      $"Wow, Received data from {res.RemoteEndPoint} +{item.Client.LocalEndPoint} + {res.Buffer.Length}",
+                      ConsoleColor.Magenta);
+                     }
+                     catch (ObjectDisposedException)
+                     {
+
+                     }
                      if (!MaybePunchedClients.Contains(item)) MaybePunchedClients.Add(item);
                      if (res.Buffer.SequenceEqual(receivedPunch))
                         PunchedPorts.Add((item.Client.LocalEndPoint as IPEndPoint).Port);
@@ -423,19 +430,19 @@ namespace MozUtil.NatUtils
          byte[] sendPunch = { 0xFF, 0xFF };
          Logger.Log($"Validating {MaybePunchedClients.Count} successors...");
          for (int i = 0; i < 15; i++)
-         for (int j = 0; j < MaybePunchedClients.Count; j++)
-         {
-            if (CTS.IsCancellationRequested)
-               break;
-            try
+            for (int j = 0; j < MaybePunchedClients.Count; j++)
             {
-               await MaybePunchedClients[j].SendAsync(sendPunch, sendPunch.Length, DestinationEP);
-               wh.WaitOne();
+               if (CTS.IsCancellationRequested)
+                  break;
+               try
+               {
+                  await MaybePunchedClients[j].SendAsync(sendPunch, sendPunch.Length, DestinationEP);
+                  wh.WaitOne();
+               }
+               catch (Exception)
+               {
+               }
             }
-            catch (Exception)
-            {
-            }
-         }
 
          //await Task.Delay(200 + (1 * (MaybePunchedClients.Count)));
          //if (PunchedPorts.Count > 0)

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Buffers.Text;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.Net;
@@ -32,7 +33,7 @@ namespace MozUtil
       private bool isPunchInProgress;
       private readonly byte[] KeepAlivePacket = { 255, 255 };
       private readonly bool LocalMode;
-      public LiteNetMozClient MClient;
+      public LiteNetMozClient? MClient;
       private readonly string ServerURL;
       private UdpClient? stunClient;
       private STUNQueryResult stunResult;
@@ -131,7 +132,7 @@ namespace MozUtil
       public event EventHandler<string>? NewLogArrived;
       public event EventHandler<int>? LatencyUpdated;
       public event EventHandler<StatusResult>? StatusUpdated;
-
+      public event EventHandler<SubTunInfo>? SubTunCreated;
       private async Task<bool> UpdateStun(int StunStartTimeout = 400, int StunTimeoutIncrementor = 1000, int MaxTimeout = 6000)
       {
          if (_SkipStun)
@@ -198,8 +199,8 @@ namespace MozUtil
             //
             //if (true)
             //{
-            //   PortRange PRange = new PortRange() { PortStart = 40000, PortEnd = 60000, PortsCount = 20000, StunResults = new STUNQueryResult[] { new STUNQueryResult() { NATType = STUNNATType.Symmetric, PublicEndPoint = new IPEndPoint(IPAddress.Parse("2a01:5ec0:981a:13ae:59d9:89d9:7554:ff8a"), 40000) } } };
-            //   byte[] PunchInfoBytes = MozStatic.SerializePunchInfo(PRange.StunResults[0], PRange.PortStart - 500, PRange.PortsCount + 1000, HolePunchingTimeout);
+            //   PortRange PRange = new PortRange() { PortStart = 40000, PortEnd = 60000, SourcePortsCount = 20000, StunResults = new STUNQueryResult[] { new STUNQueryResult() { NATType = STUNNATType.Symmetric, PublicEndPoint = new IPEndPoint(IPAddress.Parse("2a01:5ec0:981a:13ae:59d9:89d9:7554:ff8a"), 40000) } } };
+            //   byte[] PunchInfoBytes = MozStatic.SerializePunchInfo(PRange.StunResults[0], PRange.PortStart - 500, PRange.SourcePortsCount + 1000, HolePunchingTimeout);
             //   _ = PollHttpServer(PunchInfoBytes, uMode, false, CTS.Token);
             //   return true;
             //}
@@ -366,6 +367,7 @@ namespace MozUtil
                //};
                MClient.LatencyUpdate += (sender, e) => { LatencyUpdated?.Invoke(sender, e); };
                MClient.StatusUpdate += (sender, e) => { StatusUpdated?.Invoke(sender, e); };
+               MClient.SubTunCreated += (sender, e) => { SubTunCreated?.Invoke(sender, e); };
                MClient.PortsChanged += MClient_PortsChanged;
                MClient.HttpKeepAliveRequested += MClient_HttpKeepAliveRequested;
                MClient.symmetricConnectionClientCount = symmetricConnectionClientCount;
@@ -625,14 +627,14 @@ namespace MozUtil
          {
             isPunchInProgress = true;
             SymPunchedPorts = await Puncher.Symmetric2PRPunch(new IPEndPoint(PeerInfo.ipAddress, PeerInfo.Port));
-            //SymPunchedPorts = await Puncher.SymmetricNatPunchToPR(new IPEndPoint(PeerInfo.ipAddress, PeerInfo.Port));
+            //SymPunchedPorts = await Puncher.SymmetricNatPunchToPR(new IPEndPoint(PeerInfo.SourceipAddress, PeerInfo.DestPort));
             isPunchInProgress = false;
          }
          else
          {
             isPunchInProgress = true;
             SymPunchedPorts = await Puncher.Symmetric2PRPunch(new IPEndPoint(PeerInfo.ipAddress, PeerInfo.Port));
-            //SymPunchedPorts = await Puncher.SymmetricNatPunchToPR(new IPEndPoint(PeerInfo.ipAddress, PeerInfo.Port));
+            //SymPunchedPorts = await Puncher.SymmetricNatPunchToPR(new IPEndPoint(PeerInfo.SourceipAddress, PeerInfo.DestPort));
             isPunchInProgress = false;
          }
       }

@@ -1,4 +1,5 @@
 ﻿using MozUtil;
+using MozUtil.Types;
 using System.Buffers;
 using System.Net;
 using System.Net.Sockets;
@@ -7,9 +8,27 @@ internal class Program
 {
    private static void Main(string[] args)
    {
-      TcpListener Cli = new TcpListener(IPAddress.Any, 64750);
-      Cli.Start();
+      SubTunInfo tunInfo = new SubTunInfo();
+      tunInfo.DestinationPort = 540;
+      tunInfo.DestinationHostName = "The quick brown fox jumps over the lazy dog.";
+      tunInfo.ID = 1;
+      tunInfo.Type = TunType.CustomUdpTun;
+      byte[] Res = ClientCommandUtils.BuildRelayRequestCommand(tunInfo);
+
+      SubTunInfo TunInfo2 = ClientCommandUtils.ReadRelayRequestCommand(Res, 6);
+      Console.WriteLine($"{tunInfo.DestinationPort} > {TunInfo2.DestinationPort} => {tunInfo.DestinationPort == TunInfo2.DestinationPort}");
+      Console.WriteLine($"{tunInfo.DestinationHostName} > {TunInfo2.DestinationHostName} => {tunInfo.DestinationHostName == TunInfo2.DestinationHostName}");
+      Console.WriteLine($"{tunInfo.ID} > {TunInfo2.ID} => {tunInfo.ID == TunInfo2.ID}");
+      Console.WriteLine($"{tunInfo.Type} > {TunInfo2.Type} => {tunInfo.Type == TunInfo2.Type}");
+
       Console.ReadLine();
+      Environment.Exit(0);
+
+
+
+      //TcpListener Cli = new TcpListener(IPAddress.Any, 64750);
+      //Cli.Start();
+      //Console.ReadLine();
       //string URL = "http://localhost/Anime/Windows Activator.exe";
       //List<MozManager> ManagerPool = new List<MozManager>();
       //string ServerHost = "http://127.0.0.1:5209/";

@@ -1,9 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteNetLib;
@@ -28,6 +30,7 @@ namespace MozUtil.Clients
       private volatile Dictionary<ushort, MozLiteNetReliableConnection> Connections =
          new Dictionary<ushort, MozLiteNetReliableConnection>();
 
+      private volatile Dictionary<byte, SubTunInfo> udpRelaysDictionary = new Dictionary<byte, SubTunInfo>();//key is ID.
       private HttpToSocks5Proxy HttpProxy;
       private NetManager LiteNetManager;
       private string LNConnectionKey;
@@ -77,6 +80,7 @@ namespace MozUtil.Clients
       public event EventHandler<Tuple<int, int, int>>? PortsChanged;
       public event EventHandler<ServerStatusInformation>? ServerStatusInformationUpdated;
       public event EventHandler? HttpKeepAliveRequested;
+      public event EventHandler<SubTunInfo>? SubTunCreated;//only newly created ones.
       public bool EnableServerStatusInformationStreamingForPeer(int PeerID = -1, int interval = 1000)
       {
          try
@@ -97,7 +101,26 @@ namespace MozUtil.Clients
          }
          return true;
       }
-
+      public bool RequestNewRelayFromServer(SubTunInfo TunInformation, int PeerID = -1)
+      {
+         try
+         {
+            if (PeerID == -1)
+            {
+               List<NetPeer> ConnectedPeers = new List<NetPeer>();
+               LiteNetManager.GetPeersNonAlloc(ConnectedPeers, ConnectionState.Connected);
+               PeerID = ConnectedPeers[0].Id;
+            }
+            byte[] SendBuffer = ClientCommandUtils.BuildRelayRequestCommand(TunInformation);
+            LiteNetManager.GetPeerById(PeerID).Send(SendBuffer, DeliveryMethod.ReliableUnordered);
+         }
+         catch (Exception ex)
+         {
+            Logger.LogException(ex);
+            return false;
+         }
+         return true;
+      }
       public void Dispose()
       {
          Task.Run(() =>
@@ -128,11 +151,60 @@ namespace MozUtil.Clients
       //public int UdpListenPort { get; }
 
       public int MaxConnectionRetries { get; set; } = 20;
+      public SubTunInfo CreateNewUdpRelay(string DestEp, ushort DestPort, int LPort)
+      {
+         SubTunInfo inf = new SubTunInfo();
+         byte id = 1;
+         for (int i = 1; i < 256; i++)
+         {
+            if (udpRelaysDictionary.Keys.Contains(id))
+            {
+               id++;
+            }
+            else
+            {
+               break;
+            }
+            if (i >= 255)
+            {
+               inf.Status = TunStatus.Failed;
+               Logger.Log("Can't make any more tunnels, consider killing one.");
+               return inf;
+            }
+         }
+         inf.DestinationHostName = DestEp;
+         inf.DestinationPort = DestPort;
+         inf.LocalEndpoint = new IPEndPoint(IPAddress.Loopback, LPort);
+         inf.Status = TunStatus.Requesting;
+         inf.Type = TunType.CustomUdpTun;
+         inf.ID = id;
+         if (RequestNewRelayFromServer(inf) == true)
+         {
+            udpRelaysDictionary.Add(id, inf);
+            return inf;
+         }
+         else
+         {
+            Logger.Log("an Error prevented sending a relay request to the server.");
+            inf.Status = TunStatus.Failed;
+            return inf;
+         }
 
+         //Send req to server
+
+
+
+      }
       public void OnNetworkReceive(NetPeer peer, NetPacketReader reader, byte channelNumber,
          DeliveryMethod deliveryMethod)
       {
          byte[] RecData = reader.RawData[reader.UserDataOffset..(reader.UserDataSize + reader.UserDataOffset)];
+         if (deliveryMethod == DeliveryMethod.Unreliable)
+         {
+            //First byte is relay channel id
+            //udpRelaysDictionary[RecData[0]]... n stuff.
+            //True udp, use those channels now.
+         }
          //Logger.Log($"Client received {RecData.Length - 2} ({RecData.Length}) bytes of data from the server");
          ushort ConID = BitConverter.ToUInt16(RecData, 0);
          if (ConID == 0)
@@ -159,6 +231,23 @@ namespace MozUtil.Clients
                      break;
                   case ServerCommands.KeepAlive:
                      HttpKeepAliveRequested?.Invoke(this, EventArgs.Empty);
+                     break;
+                  case ServerCommands.UdpRelayResult:
+                     //key is the next byte.
+                     byte RelayKey = RecData[6];
+                     //and result is the next. 0 for rejection and 255 for acceptance.
+                     byte ResultVal = RecData[7];
+                     if (ResultVal == 0)
+                        udpRelaysDictionary[RelayKey].Status = TunStatus.Rejected;
+                     else if (ResultVal == 255)
+                        udpRelaysDictionary[RelayKey].Status = TunStatus.Connected;
+                     else
+                     {
+                        //Unknown so far
+                        Logger.Log($"Unknown relay creation result: {ResultVal}");
+                        udpRelaysDictionary[RelayKey].Status = TunStatus.Failed;
+                     }
+
                      break;
                   default:
                      break;
@@ -221,6 +310,9 @@ namespace MozUtil.Clients
       public void OnNetworkReceiveUnconnected(IPEndPoint remoteEndPoint, NetPacketReader reader,
          UnconnectedMessageType messageType)
       {
+         //Unconnected channel index one byte (0-255) (Not inclusive, 255 for punch and 0 for control)
+         //Unconnected channel control done over reliable channels (Creation/Destruction)
+         // NAH, moved to "Connected" but using "Unreliable"
          Logger.Log("Unconmsg");
 
          //True udp packet (Shadowsocks, wireguard, etc)
@@ -508,7 +600,7 @@ namespace MozUtil.Clients
             LiteNetManager.Start(LocalEndPoint.Port);
          }
          //NMHolder._NetManagers.Add(NM1);
-         //NM1.Start(LocalEndPoint.Address, IPAddress.IPv6Any, LocalEndPoint.Port);
+         //NM1.Start(LocalEndPoint.Address, IPAddress.IPv6Any, LocalEndPoint.DestPort);
          //byte[] UnconMes = new byte[2] { 255, 255 };
          //for (int i = 0; i < 3; i++)
          //{
@@ -619,6 +711,10 @@ namespace MozUtil.Clients
          {
             while (LiteNetManager.ConnectedPeersCount != 0 || ReconRetries < MaxConnectionRetries)
             {
+               if (object.ReferenceEquals(MtServer, null))
+               {
+                  break;
+               }
                var cli = await MtServer.AcceptTcpClientAsync();
                ushort MyConnectionID = 0;
                lock (_LockObj)
@@ -735,6 +831,24 @@ namespace MozUtil.Clients
          });
       }
       //AutoResetEvent ResetEvent = new AutoResetEvent(true);
+      private void Con_SendUnconnected(object sender, MozPacket e)
+      {
+         //if (LiteNetManager.IsRunning)
+         //   try
+         //   {
+         //      LiteNetManager.GetPeerById(e.PeerID).Send(e.RawData, e.StartIndex, e.Length, DeliveryMethod.Unreliable);
+         //      while (LiteNetManager.GetPeerById(e.PeerID).GetPacketsCountInReliableQueue(e.ChannelID, true) >
+         //             MaxOutboundPackets) Thread.Sleep(1);
+         //      //Logger.Log($"Client is sending ({e.Length - 2}) {e.Length} bytes to server Con ID {((MozLiteNetReliableConnection)sender).ConnectionID} channel {e.ChannelID}");
+         //      LiteNetManager.GetPeerById(e.PeerID).Send(e.RawData, e.StartIndex, e.Length, e.ChannelID,
+         //         DeliveryMethod.ReliableOrdered);
+         //      //ResetEvent.Set();
+         //   }
+         //   catch (Exception ex)
+         //   {
+         //      Logger.Log(ex.Message + Environment.NewLine + ex.StackTrace);
+         //   }
+      }
       private void Con_DataAvailable(object sender, MozPacket e)
       {
          if (LiteNetManager.IsRunning)

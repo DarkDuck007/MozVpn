@@ -10,6 +10,15 @@ namespace MozUtil.NatUtils
 {
    public static class MozStun
    {
+      public static STUNQueryResult IPDiscoverOnly(Socket SockToUse, string Address, int Timeout = 2000)
+      {
+         if (!STUNUtils.TryParseHostAndPort(Address, out IPEndPoint stunEndPoint))
+            throw new Exception("Failed to resolve STUN server address");
+         STUNClient.ReceiveTimeout = Timeout;
+         var queryResult =
+            STUNClient.Query(SockToUse, stunEndPoint, STUNQueryType.PublicIP, NATTypeDetectionRFC.Rfc3489);
+         return queryResult;
+      }
       public static STUNQueryResult GetStunResult(Socket SockToUse, string Address, int Timeout = 2000)
       {
          //string StunServerDef = "stun.schlund.de:3478";
@@ -129,7 +138,9 @@ namespace MozUtil.NatUtils
          int PortRangeCount = PortRangeEnd - PortRangeStart;
          PortRange PR = new PortRange
          {
-            PortStart = PortRangeStart, PortEnd = PortRangeEnd, PortsCount = PortRangeCount,
+            PortStart = PortRangeStart,
+            PortEnd = PortRangeEnd,
+            PortsCount = PortRangeCount,
             StunResults = StunResults.ToArray()
          };
          PublicPortsList.Clear();

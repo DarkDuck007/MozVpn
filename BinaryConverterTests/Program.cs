@@ -13,6 +13,51 @@ namespace BinaryConverterTests
 
       static void Main(string[] args)
       {
+         int IsSolved(int[,] board)
+         {
+            //int Width = 6;
+            //int Height = 6;
+
+            //int VerticalOffset = 0;
+            //int HorizontalOffset = 0;
+            ////make 3x3 chunks
+            //int[,] subchunk = new int[3, 3];
+            //for (int i = 0; i < Width; i++)
+            //{
+            //   Array.Copy(board, subchunk, i);
+            //}
+            //Horizontal and vertical
+            int CounterH = 0;
+            int CounterV = 0;
+            int CheckFor = 1;
+            for (int i = 0; i < 3; i++)
+            {
+               CounterH = 0;
+               CounterV = 0;
+               for (int j = 0; j < 3; j++)
+               {
+                  if (board[i, j] == CheckFor)
+                  {
+                     CounterH++;
+                     if (CounterH == 3)
+                     {
+                        //x won?
+                        return 1;
+                     }
+                  }
+                  if (board[j, i] == CheckFor)
+                  {
+                     CounterV++;
+                     if (CounterV == 3)
+                     {
+                        //x won again.
+                        return 1;
+                     }
+                  }
+               }
+            }
+            return 0;
+         }
          //Console.WriteLine("Test 1");
          //CustomPipeInformation pipeInformation = new CustomPipeInformation(IPAddress.Parse("100.100.100.100"), 1000, 9, ProtocolType.Udp, DeliveryMethod.ReliableOrdered);
          //byte[] CommandBytes = ClientCommandUtils.BuildCustomPipeCommand(pipeInformation);

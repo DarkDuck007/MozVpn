@@ -197,6 +197,81 @@
                </Grid>
             </TabItem>
             <!--<TabItem Header="Channels"/>-->
+            <TabItem Header="udpRelay">
+               <Grid Margin="5">
+                  <Grid.ColumnDefinitions>
+                     <ColumnDefinition Width="auto"/>
+                     <ColumnDefinition Width="4*"/>
+                     <ColumnDefinition Width="auto"/>
+                     <ColumnDefinition Width="*"/>
+                     <ColumnDefinition Width="auto"/>
+                  </Grid.ColumnDefinitions>
+                  <Grid.RowDefinitions>
+                     <RowDefinition Height="auto"/>
+                     <RowDefinition Height="*"/>
+                  </Grid.RowDefinitions>
+                  <Label Grid.Column="0" FontSize="12" Margin="-8,0,-2,0">Endpoint</Label>
+                  <TextBox x:Name="RelayEndpointtxt" Grid.Column="1" Margin="1" FontSize="14">engage.cloudflareclient.com:2408</TextBox>
+                  <Label Grid.Column="2" Margin="-4,0,-2,0">On port</Label>
+                  <TextBox x:Name="RelayListenPorttxt" Grid.Column="3" Margin="3">6445</TextBox>
+                  <Button x:Name="CreateNewUdpRelayBtn" Click="CreateNewUdpRelayBtn_Click" Grid.Column="4">Create</Button>
+                  <GroupBox Header="Active" Grid.Row="1" Grid.ColumnSpan="5">
+                     <ListView x:Name="ActiveUdpRelays" 
+                               VirtualizingPanel.ScrollUnit="Pixel" 
+                               HorizontalContentAlignment="Stretch"
+                               MouseDoubleClick="ActiveUdpRelays_MouseDoubleClick">
+                        <ListView.ItemTemplate>
+                           <DataTemplate>
+                              <!--<GroupBox Header="{Binding ID}">-->
+                              <Grid>
+                                 <Grid.RowDefinitions>
+                                    <RowDefinition Height="auto"/>
+                                    <RowDefinition Height="auto"/>
+                                 </Grid.RowDefinitions>
+                                 <Grid Grid.Row="0">
+                                    <Grid.ColumnDefinitions>
+                                       <ColumnDefinition Width="auto"/>
+                                       <ColumnDefinition Width="auto"/>
+                                       <ColumnDefinition Width="auto"/>
+                                       <ColumnDefinition Width="auto"/>
+                                       <ColumnDefinition Width="auto"/>
+                                       <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                       <RowDefinition Height="auto"/>
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Grid.Column="0" Grid.Row="0" Text="{Binding ID}"/>
+                                    <TextBlock Grid.Column="1" Grid.Row="0" Text=") "></TextBlock>
+                                    <TextBlock Grid.Column="2" Grid.Row="0" Text="{Binding DestinationHostName}"/>
+                                    <TextBlock Grid.Column="3" Grid.Row="0">:</TextBlock>
+                                    <TextBlock Grid.Column="4" Grid.Row="0" Text="{Binding DestinationPort}"/>
+                                    <TextBlock Grid.Column="5" HorizontalAlignment="Right" Text="{Binding Status}"/>
+                                 </Grid>
+                                 <Grid Grid.Row="1">
+                                    <Grid.ColumnDefinitions>
+                                       <ColumnDefinition Width="auto"/>
+                                       <ColumnDefinition Width="auto"/>
+                                       <ColumnDefinition Width="auto"/>
+                                       <ColumnDefinition Width="4*"/>
+                                       <ColumnDefinition Width="auto"/>
+                                       <ColumnDefinition Width="4*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Listening on: "/>
+                                    <TextBlock Grid.Column="1" Text="{Binding LocalEndpoint}"/>
+                                    <TextBlock Grid.Column="2" Text="   ↓" HorizontalAlignment="Right"/>
+                                    <TextBlock Grid.Column="3" HorizontalAlignment="Left" Text="{Binding TotalInForMuman}"/>
+                                    <TextBlock Grid.Column="4" Text="↑" HorizontalAlignment="Right"/>
+                                    <TextBlock Grid.Column="5" HorizontalAlignment="Left" Text="{Binding TotalOutForMuman}"/>
+                                 </Grid>
+                              </Grid>
+
+                              <!--</GroupBox>-->
+                           </DataTemplate>
+                        </ListView.ItemTemplate>
+                     </ListView>
+                  </GroupBox>
+               </Grid>
+            </TabItem>
          </TabControl>
       </Grid>
    </Border>
