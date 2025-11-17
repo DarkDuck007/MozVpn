@@ -11,7 +11,7 @@ internal class Program
       string URL = "http://localhost/gcc-13.2.0-no-debug.7z";
       for (int i = 0; i < 32; i++)
       {
-         Task.Run(() =>
+         Task.Run(async () =>
          {
             var buffer = ArrayPool<byte>.Shared.Rent(4096);
             
@@ -26,7 +26,7 @@ internal class Program
                   int k = 0;
                   while ((k = resps.Read(buffer, 0, buffer.Length)) > 0)
                   {
-
+                     await Task.Delay(1000);
                   }
                   resps.Dispose();
                   resp.Dispose();
