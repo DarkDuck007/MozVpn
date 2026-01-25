@@ -1,7 +1,7 @@
 ﻿<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-             xmlns:local="clr-namespace:MozVpnMAUI"
+             xmlns:local="clr-namespace:MozVpnMAUI" Loaded="ContentPage_Loaded"
              x:Class="MozVpnMAUI.MainPage">
 
    <Border Padding="5">
@@ -135,7 +135,14 @@ TextColor="Red" Margin="3"/>
                      <RowDefinition Height="Auto"/>
                   </Grid.RowDefinitions>
                   <Label VerticalOptions="Center" Text="Stun Server:" Margin="3" Grid.Column="0"/>
-                  <Picker HorizontalOptions="FillAndExpand" x:Name="StunServerSelectorComboBox" Grid.Column="1" SelectedIndex="0" Margin="3"></Picker>
+                  <Grid Grid.Column="1">
+                     <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                     </Grid.ColumnDefinitions>
+                     <Entry x:Name="StunServerEntry" Placeholder="stun.server.address:port" Grid.Column="0" Margin="3" Text="stun.schlund.de:3478"/>
+                     <Picker x:Name="StunServerPicker" Grid.Column="1" Margin="3" SelectedIndexChanged="StunServerPicker_SelectedIndexChanged" WidthRequest="30"/>
+                  </Grid>
                   <Label VerticalOptions="Center" Text="ConnectionType:" Margin="3" Grid.Column="0" Grid.Row="1"/>
                   <Picker x:Name="ConnectionTypeComboBox" Margin="3" Grid.Column="1" Grid.Row="1">
                      <Picker.Items>
@@ -148,7 +155,14 @@ TextColor="Red" Margin="3"/>
                   <Label VerticalOptions="Center"  Text="Max Channels:" Grid.Row="2" Margin="3" />
                   <Picker Margin="3" Grid.Row="2" Grid.Column="1" x:Name="MaxChannelsComboBox" SelectedIndex="31"></Picker>
                   <Label VerticalOptions="Center"  Text="Server Address:" Grid.Row="3" Margin="3"/>
-                  <Picker Margin="3" Grid.Row="3" Grid.Column="1" x:Name="ServerSelectionComboBox" SelectedIndex="0"></Picker>
+                  <Grid Grid.Row="3" Grid.Column="1">
+                     <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                     </Grid.ColumnDefinitions>
+                     <Entry x:Name="ServerAddressEntry" Placeholder="vpn.server.address:port" Grid.Column="0" Margin="3" Text="http://dirtypx.somee.com/"/>
+                     <Picker x:Name="ServerAddressPicker" Grid.Column="1" Margin="3" SelectedIndexChanged="ServerAddressPicker_SelectedIndexChanged" WidthRequest="30"/>
+                  </Grid>
                </Grid>
             </StackLayout>
          </Border>

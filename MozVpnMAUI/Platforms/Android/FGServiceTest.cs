@@ -1,6 +1,7 @@
 ﻿using Android.Accessibilityservice.AccessibilityService;
 using Android.App;
 using Android.Content;
+using Android.Content.PM;
 using Android.OS;
 using AndroidX.Core.App;
 using System;
@@ -11,7 +12,7 @@ using System.Threading.Tasks;
 
 namespace MozVpnMAUI.Platforms.Android
 {
-   [Service]
+   [Service(ForegroundServiceType = ForegroundService.TypeDataSync)]
    internal class FGServiceTest : Service
    {
       private string NOTIFICATION_CHANNEL_ID = "1000";
@@ -27,14 +28,22 @@ namespace MozVpnMAUI.Platforms.Android
             createNotificationChannel(notifcationManager);
          }
 
-         var notification = new NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID);
-         notification.SetAutoCancel(false);
-         notification.SetOngoing(true);
-         notification.SetSmallIcon(Resource.Mipmap.appicon);
-         notification.SetContentTitle("ForegroundService");
-         notification.SetContentText("Foreground Service is running");
+         var notification = new NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
+            .SetAutoCancel(false)
+            .SetOngoing(true)
+            .SetSmallIcon(Resource.Mipmap.appicon)
+            .SetContentTitle("ForegroundService")
+            .SetContentText("Foreground Service is running")
+            .Build();
          StaticInformation.StopServiceEvent += StaticInformation_StopServiceEvent;
-         StartForeground(NOTIFICATION_ID, notification.Build());
+         if (Build.VERSION.SdkInt >= BuildVersionCodes.Q)
+         {
+            StartForeground(NOTIFICATION_ID, notification, ForegroundService.TypeDataSync);
+         }
+         else
+         {
+            StartForeground(NOTIFICATION_ID, notification);
+         }
 
          //Task.Run(async () => {
          //   await Task.Delay(10000);

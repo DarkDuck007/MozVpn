@@ -53,6 +53,10 @@ namespace MozVpnWPF
       int TimerCounter = 0;
       private void ToggleServerConnectionBtn_Click(object sender, RoutedEventArgs e)
       {
+         if (!ServerSelectionComboBox.Text.EndsWith("/"))
+         {
+            ServerSelectionComboBox.Text += "/";
+         }
          try
          {
             if (ToggleServerConnectionBtn.Content == "Connect") //ON

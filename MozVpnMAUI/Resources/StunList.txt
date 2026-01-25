@@ -499,3 +499,4 @@ stun3.l.google.com:19302
 stun4.l.google.com:19302
 stunserver.org:3478
 stunserver2024.stunprotocol.org:3478
+stun.cloudflare.com:3478

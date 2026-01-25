@@ -47,16 +47,26 @@ namespace MozVpnMAUI
          PlatformSpecific();
          MaxChannelsComboBox.ItemsSource = StaticInformation.PossibleChannelCount;
          OneSecondTimer = new Timer(OneSecondTimerCallback, null, 1000, 1000);
-         StunServerSelectorComboBox.ItemsSource = StaticInformation.StunServers;
+         StunServerPicker.ItemsSource = StaticInformation.StunServers;
          ConnectionTypeComboBox.SelectedIndex = 0;
-         StunServerSelectorComboBox.SelectedIndex = 0;
+         if (!string.IsNullOrWhiteSpace(StunServerEntry.Text))
+         {
+            StunServerPicker.SelectedItem = StunServerEntry.Text;
+         }
          MaxChannelsComboBox.SelectedIndex = 15;
-         ServerSelectionComboBox.ItemsSource = StaticInformation.ServerList;
-         ServerSelectionComboBox.SelectedIndex = 0;
+         ServerAddressPicker.ItemsSource = StaticInformation.ServerList;
+         if (!string.IsNullOrWhiteSpace(ServerAddressEntry.Text))
+         {
+            ServerAddressPicker.SelectedItem = ServerAddressEntry.Text;
+         }
 
          //ProxyModeCheckBox.IsEnabled = false;//CHANGE LATER
          //ProxyModeCheckBox.IsEnabled = true;
          TunModeCheckBox.IsEnabled = false;//CHANGE LATER
+         //await SecureStorage.Default.SetAsync("serveraddr", ServerAddressEntry.Text);
+         //await SecureStorage.Default.SetAsync("stunaddr", StunServerEntry.Text);
+         //await SecureStorage.Default.SetAsync("channels", MaxChannels.ToString());
+
       }
       private void StartTestService()
       {
@@ -81,21 +91,28 @@ namespace MozVpnMAUI
             if (e.Value) //ON
             {
                StartTestService();
-               if (ServerSelectionComboBox.SelectedItem.ToString() == null || StunServerSelectorComboBox.SelectedItem == null)
+               if (ServerAddressEntry.Text.ToString() == null || string.IsNullOrWhiteSpace(StunServerEntry.Text))
                {
-                  throw new Exception("Dayum");
+                  await DisplayAlert("Error", "Please select a server and STUN server.", "OK");
+                  return;
                }
-               ServerURL = ServerSelectionComboBox.SelectedItem.ToString();
+               ServerURL = ServerAddressEntry.Text.ToString();
                string StunServer;
-               if (StunServerSelectorComboBox.SelectedItem.ToString() == "Auto")
+               if (StunServerEntry.Text.ToString() == "Auto")
                {
                   StunServer = StaticInformation.StunServers[4];
                }
                else
                {
-                  StunServer = StunServerSelectorComboBox.SelectedItem.ToString();
+                  StunServer = StunServerEntry.Text.ToString();
                }
+
                byte MaxChannels = byte.Parse(MaxChannelsComboBox.SelectedItem.ToString());
+               await SecureStorage.Default.SetAsync("Serveraddr", ServerAddressEntry.Text);
+               await SecureStorage.Default.SetAsync("Stunaddr", StunServerEntry.Text);
+               await SecureStorage.Default.SetAsync("Channels", MaxChannels.ToString());
+               await SecureStorage.Default.SetAsync("Proxyaddr", ConInitProxyServerEntry.Text.ToString());
+
                TransportMode uMode;
                switch (ConnectionTypeComboBox.SelectedIndex)
                {
@@ -373,6 +390,87 @@ namespace MozVpnMAUI
       private void LogEnabledCheckBox_CheckedChanged(object sender, CheckedChangedEventArgs e)
       {
          LogEnabled = e.Value;
+      }
+
+      private async void ContentPage_Loaded(object sender, EventArgs e)
+      {
+         //await SecureStorage.Default.SetAsync("serveraddr", ServerAddressEntry.Text);
+         //await SecureStorage.Default.SetAsync("stunaddr", StunServerEntry.Text);
+         //await SecureStorage.Default.SetAsync("channels", MaxChannels.ToString());
+         //await SecureStorage.Default.SetAsync("Proxyaddr", ConInitProxyServerEntry.ToString());
+
+         await SecureStorage.Default.GetAsync("Serveraddr").ContinueWith((task) =>
+         {
+            if (task.Result != null)
+            {
+               this.Dispatcher.Dispatch(() =>
+               {
+                  ServerAddressEntry.Text = task.Result;
+                  ServerAddressPicker.SelectedItem = task.Result;
+               });
+            }
+         });
+         await SecureStorage.Default.GetAsync("Stunaddr").ContinueWith((task) =>
+         {
+            if (task.Result != null)
+            {
+               this.Dispatcher.Dispatch(() =>
+               {
+                  StunServerEntry.Text = task.Result;
+                  StunServerPicker.SelectedItem = task.Result;
+               });
+            }
+         });
+         await SecureStorage.Default.GetAsync("Channels").ContinueWith((task) =>
+         {
+            if (task.Result != null)
+            {
+               this.Dispatcher.Dispatch(() =>
+               {
+                  byte Channels = byte.Parse(task.Result);
+                  MaxChannelsComboBox.SelectedItem = Channels;
+               });
+            }
+         });
+         await SecureStorage.Default.GetAsync("Proxyaddr").ContinueWith((task) =>
+         {
+            if (task.Result != null)
+            {
+               this.Dispatcher.Dispatch(() =>
+               {
+                  string proxyAddr = task.Result;
+                  ConInitProxyServerEntry.Text = proxyAddr;
+               });
+            }
+         });
+      }
+
+      private void StunServerPicker_SelectionChanged(object sender, SelectionChangedEventArgs e)
+      {
+         if (e.CurrentSelection != null && e.CurrentSelection.Count > 0)
+         {
+            string selected = e.CurrentSelection[0] as string;
+            if (!string.IsNullOrWhiteSpace(selected))
+            {
+               StunServerEntry.Text = selected;
+            }
+         }
+      }
+
+      private void StunServerPicker_SelectedIndexChanged(object sender, EventArgs e)
+      {
+         if (StunServerPicker.SelectedItem != null)
+         {
+            StunServerEntry.Text = StunServerPicker.SelectedItem.ToString();
+         }
+      }
+
+      private void ServerAddressPicker_SelectedIndexChanged(object sender, EventArgs e)
+      {
+         if (ServerAddressPicker.SelectedItem != null)
+         {
+            ServerAddressEntry.Text = ServerAddressPicker.SelectedItem.ToString();
+         }
       }
    }
 }

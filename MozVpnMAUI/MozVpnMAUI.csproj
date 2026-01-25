@@ -23,6 +23,10 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" />
+	</ItemGroup>
+
+	<ItemGroup>
 	  <ProjectReference Include="..\..\DirtyProxy\STUN-master\STUN\STUN.csproj" />
 	  <ProjectReference Include="..\MozUtil\MozUtil.csproj" />
 	</ItemGroup>
