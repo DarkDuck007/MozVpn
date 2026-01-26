@@ -4,6 +4,7 @@ using Android.Content;
 using Android.Content.PM;
 using Android.Net;
 using Android.OS;
+using Android.Systems;
 using AndroidX.Core.App;
 using Java.Lang;
 using JavaProcess = Java.Lang.Process;
@@ -12,6 +13,8 @@ using MozVpnMAUI;
 using MozUtil;
 using System;
 using System.IO;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace MozVpnMAUI.Platforms.Android
 {
@@ -31,6 +34,8 @@ namespace MozVpnMAUI.Platforms.Android
       private const string NotificationChannelName = "MozVPN VPN Mode";
 
       private ParcelFileDescriptor? tunInterface;
+      private ParcelFileDescriptor? tunPfd;
+      private int tunFd = -1;
       private JavaProcess? xrayProcess;
       private bool isRunning;
 
@@ -101,6 +106,24 @@ namespace MozVpnMAUI.Platforms.Android
          builder.AddAddress("10.0.0.2", 32);
          builder.AddRoute("0.0.0.0", 0);
          builder.AddDnsServer("1.1.1.1");
+         builder.AddDnsServer("8.8.8.8");
+         try
+         {
+            builder.AddAddress("fd00:1:fd00:1::1", 128);
+            builder.AddRoute("::", 0);
+         }
+         catch (System.Exception ex)
+         {
+            Logger.Log(ex.Message + ex.StackTrace);
+         }
+         try
+         {
+            builder.SetMtu(1500);
+         }
+         catch (System.Exception ex)
+         {
+            Logger.Log(ex.Message + ex.StackTrace);
+         }
          try
          {
             builder.AddDisallowedApplication(PackageName);
@@ -116,6 +139,23 @@ namespace MozVpnMAUI.Platforms.Android
             StopSelf();
             return;
          }
+         try
+         {
+            tunFd = tunInterface.DetachFd();
+            tunPfd = global::Android.OS.ParcelFileDescriptor.AdoptFd(tunFd);
+            const int F_GETFD = 1;
+            const int F_SETFD = 2;
+            int flags = Os.FcntlInt(tunPfd.FileDescriptor, F_GETFD, 0);
+            const int FD_CLOEXEC = 1;
+            Os.FcntlInt(tunPfd.FileDescriptor, F_SETFD, flags & ~FD_CLOEXEC);
+            Logger.Log($"Tun fd: {tunFd}, flags: {flags}");
+         }
+         catch (System.Exception ex)
+         {
+            Logger.Log(ex.Message + ex.StackTrace);
+            StopSelf();
+            return;
+         }
 
          string? xrayPath = EnsureXrayBinary();
          if (string.IsNullOrWhiteSpace(xrayPath))
@@ -125,10 +165,11 @@ namespace MozVpnMAUI.Platforms.Android
             return;
          }
 
+         string appData = FileSystem.AppDataDirectory;
          string configPath;
          try
          {
-            configPath = BuildConfig(vlessUri, tunInterface.Fd);
+            configPath = BuildConfig(vlessUri, tunFd);
          }
          catch (System.Exception ex)
          {
@@ -136,12 +177,14 @@ namespace MozVpnMAUI.Platforms.Android
             StopSelf();
             return;
          }
-         if (!StartXrayProcess(xrayPath, configPath))
+         if (!StartXrayProcess(xrayPath, configPath, appData))
          {
             Logger.Log("Failed to start Xray process.");
             StopSelf();
             return;
          }
+         Logger.Log($"Xray config: {configPath}");
+         Logger.Log($"Xray assets: {appData}");
 
          isRunning = true;
       }
@@ -161,7 +204,8 @@ namespace MozVpnMAUI.Platforms.Android
 
          try
          {
-            tunInterface?.Close();
+            tunPfd?.Dispose();
+            tunPfd = null;
             tunInterface = null;
          }
          catch (System.Exception ex)
@@ -216,72 +260,115 @@ namespace MozVpnMAUI.Platforms.Android
       {
          string appData = FileSystem.AppDataDirectory;
          string configPath = Path.Combine(appData, "xray_tun.json");
-         string accessLog = Path.Combine(appData, "xray_access.log").Replace("\\", "/");
-         string errorLog = Path.Combine(appData, "xray_error.log").Replace("\\", "/");
-         VlessOutboundConfig vless = ParseVlessUri(vlessUri);
-         string config_vless = "{\n" +
-            "  \"log\": { \"loglevel\": \"debug\", \"access\": \"" + accessLog + "\", \"error\": \"" + errorLog + "\" },\n" +
-            "  \"dns\": {\n" +
-            "    \"servers\": [\n" +
-            "      { \"address\": \"1.1.1.1\", \"detour\": \"vless-out\" },\n" +
-            "      { \"address\": \"8.8.8.8\", \"detour\": \"vless-out\" }\n" +
-            "    ]\n" +
-            "  },\n" +
-            "  \"routing\": {\n" +
-            "    \"domainStrategy\": \"AsIs\",\n" +
-            "    \"rules\": [\n" +
-            "      { \"type\": \"field\", \"protocol\": [\"dns\"], \"outboundTag\": \"vless-out\" }\n" +
-            "    ]\n" +
-            "  },\n" +
-            "  \"inbounds\": [\n" +
-            "    {\n" +
-            "      \"tag\": \"tun-in\",\n" +
-            "      \"protocol\": \"tun\",\n" +
-            "      \"settings\": {\n" +
-            "        \"fd\": " + tunFd + ",\n" +
-            "        \"mtu\": 1500,\n" +
-            "        \"auto_route\": false,\n" +
-            "        \"stack\": \"system\"\n" +
-            "      }\n" +
-            "    }\n" +
-            "  ],\n" +
-            "  \"outbounds\": [\n" +
-            "    {\n" +
-            "      \"tag\": \"vless-out\",\n" +
-            "      \"protocol\": \"vless\",\n" +
-            "      \"settings\": {\n" +
-            "        \"vnext\": [\n" +
-            "          {\n" +
-            "            \"address\": \"" + vless.Address + "\",\n" +
-            "            \"port\": " + vless.Port + ",\n" +
-            "            \"users\": [\n" +
-            "              { \"id\": \"" + vless.UserId + "\", \"encryption\": \"" + vless.Encryption + "\" }\n" +
-            "            ]\n" +
-            "          }\n" +
-            "        ]\n" +
-            "      },\n" +
-            "      \"streamSettings\": {\n" +
-            "        \"network\": \"" + vless.Network + "\",\n" +
-            "        \"security\": \"" + vless.Security + "\",\n" +
-            vless.TlsSettingsJson +
-            "        \"wsSettings\": {\n" +
-            "          \"path\": \"" + vless.Path + "\",\n" +
-            "          \"headers\": { \"Host\": \"" + vless.HostHeader + "\" }\n" +
-            "        }\n" +
-            "      }\n" +
-            "    }\n" +
-            "  ]\n" +
-            "}\n";
+         EnsureXrayAssets(appData);
+         try
+         {
+            string json;
+            using (Stream src = FileSystem.OpenAppPackageFileAsync("Config.json").GetAwaiter().GetResult())
+            using (StreamReader reader = new StreamReader(src))
+            {
+               json = reader.ReadToEnd();
+            }
 
+            JsonNode? root = JsonNode.Parse(json);
+            if (root is not JsonObject obj)
+            {
+               throw new InvalidDataException("Config.json root must be a JSON object.");
+            }
+
+            JsonArray inbounds;
+            if (obj["inbounds"] is JsonArray arr)
+            {
+               inbounds = arr;
+            }
+            else
+            {
+               inbounds = new JsonArray();
+               obj["inbounds"] = inbounds;
+            }
+
+            JsonObject tunInbound = new JsonObject
+            {
+               ["tag"] = "tun-in",
+               ["protocol"] = "tun",
+               ["settings"] = new JsonObject
+               {
+                  ["fd"] = tunFd,
+                  ["mtu"] = 1500,
+                  ["auto_route"] = false,
+                  ["stack"] = "system"
+               }
+            };
+            inbounds.Insert(0, tunInbound);
+
+            string accessLog = Path.Combine(appData, "xray_access.log").Replace("\\", "/");
+            string errorLog = Path.Combine(appData, "xray_error.log").Replace("\\", "/");
+            if (obj["log"] is not JsonObject logObj)
+            {
+               logObj = new JsonObject();
+               obj["log"] = logObj;
+            }
+            logObj["loglevel"] = "debug";
+            logObj["access"] = accessLog;
+            logObj["error"] = errorLog;
+
+            string output = obj.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
+            global::System.IO.File.WriteAllText(configPath, output);
+         }
+         catch (System.Exception ex)
+         {
+            Logger.Log(ex.Message + ex.StackTrace);
+            throw;
+         }
+         return configPath;
+      }
+
+      private string BuildConfigLegacy(string vlessUri, int tunFd)
+      {
+         string appData = FileSystem.AppDataDirectory;
+         string configPath = Path.Combine(appData, "xray_tun.json");
+         EnsureXrayAssets(appData);
+         VlessOutboundConfig vless = ParseVlessUri(vlessUri);
+      
+         using var stream = FileSystem.OpenAppPackageFileAsync("Config.json").GetAwaiter().GetResult();
+         using var reader = new StreamReader(stream);
+
+         string config_vless = reader.ReadToEnd();
          File.WriteAllText(configPath, config_vless);
          return configPath;
       }
 
-      private bool StartXrayProcess(string xrayPath, string configPath)
+      private void EnsureXrayAssets(string appData)
+      {
+         CopyAssetIfMissing("geoip.dat", Path.Combine(appData, "geoip.dat"));
+         CopyAssetIfMissing("geosite.dat", Path.Combine(appData, "geosite.dat"));
+         CopyAssetIfMissing("Config.json", Path.Combine(appData, "Config.json"));
+      }
+
+      private void CopyAssetIfMissing(string assetName, string destPath)
       {
          try
          {
-            xrayProcess = Runtime.GetRuntime().Exec(new string[] { xrayPath, "run", "-config", configPath });
+            if (global::System.IO.File.Exists(destPath))
+            {
+               return;
+            }
+            using Stream src = FileSystem.OpenAppPackageFileAsync(assetName).GetAwaiter().GetResult();
+            using FileStream dst = global::System.IO.File.Create(destPath);
+            src.CopyTo(dst);
+         }
+         catch (System.Exception ex)
+         {
+            Logger.Log(ex.Message + ex.StackTrace);
+         }
+      }
+
+      private bool StartXrayProcess(string xrayPath, string configPath, string assetDir)
+      {
+         try
+         {
+            string[] envp = new string[] { "XRAY_LOCATION_ASSET=" + assetDir };
+            xrayProcess = Runtime.GetRuntime().Exec(new string[] { xrayPath, "run", "-config", configPath }, envp);
             StartLogPipes();
             return true;
          }

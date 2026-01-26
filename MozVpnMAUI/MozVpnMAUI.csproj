@@ -27,9 +27,14 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<MauiAsset Include="Resources\Raw\geoip.dat" LogicalName="geoip.dat" />
+		<MauiAsset Include="Resources\Raw\geosite.dat" LogicalName="geosite.dat" />
+		<MauiAsset Include="Resources\Raw\Config.json" LogicalName="Config.json" />
+	</ItemGroup>
+
+	<ItemGroup>
 		<AndroidNativeLibrary Include="Platforms\Android\lib\arm64-v8a\libxray.so" />
 		<AndroidNativeLibrary Include="Platforms\Android\lib\x86_64\libxray.so" />
-
 	</ItemGroup>
 	
 	<ItemGroup>
