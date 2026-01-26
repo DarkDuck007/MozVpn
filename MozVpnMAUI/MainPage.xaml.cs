@@ -5,6 +5,9 @@ using Microsoft.Maui.Handlers;
 using MozUtil;
 using MozUtil.NatUtils;
 #if ANDROID
+using Android.Content;
+using Android.Net;
+using Microsoft.Maui.ApplicationModel;
 using MozVpnMAUI.Platforms.Android;
 #endif
 using STUN;
@@ -28,6 +31,10 @@ namespace MozVpnMAUI
       MozManager? Manager;
       Timer OneSecondTimer;
       TransportMode uMode = TransportMode.LiteNet;
+#if ANDROID
+      private const string DefaultVlessUri = "vless://58667c21-6a0e-4ab7-ada2-3cc57ae9aaec@127.0.0.1:6075?path=%2Ffl%3Fed%3D2560&security=none&encryption=none&host=localhost&type=ws&sni=are.com#realilocal";
+      private string vlessUri = DefaultVlessUri;
+#endif
       void PlatformSpecific()
       {
 #if WINDOWS
@@ -62,12 +69,12 @@ namespace MozVpnMAUI
 
          //ProxyModeCheckBox.IsEnabled = false;//CHANGE LATER
          //ProxyModeCheckBox.IsEnabled = true;
-         TunModeCheckBox.IsEnabled = false;//CHANGE LATER
          //await SecureStorage.Default.SetAsync("serveraddr", ServerAddressEntry.Text);
          //await SecureStorage.Default.SetAsync("stunaddr", StunServerEntry.Text);
          //await SecureStorage.Default.SetAsync("channels", MaxChannels.ToString());
 
       }
+
       private void StartTestService()
       {
 #if ANDROID
@@ -108,10 +115,23 @@ namespace MozVpnMAUI
                }
 
                byte MaxChannels = byte.Parse(MaxChannelsComboBox.SelectedItem.ToString());
+#if ANDROID
+               vlessUri = XrayVlessConfigEntry?.Text?.Trim();
+               if (string.IsNullOrWhiteSpace(vlessUri))
+               {
+                  vlessUri = DefaultVlessUri;
+                  if (XrayVlessConfigEntry != null)
+                  {
+                     XrayVlessConfigEntry.Text = vlessUri;
+                  }
+               }
+               await SecureStorage.Default.SetAsync("XrayVlessUri", vlessUri);
+#endif
                await SecureStorage.Default.SetAsync("Serveraddr", ServerAddressEntry.Text);
                await SecureStorage.Default.SetAsync("Stunaddr", StunServerEntry.Text);
                await SecureStorage.Default.SetAsync("Channels", MaxChannels.ToString());
-               await SecureStorage.Default.SetAsync("Proxyaddr", ConInitProxyServerEntry.Text.ToString());
+               if (!string.IsNullOrWhiteSpace(ConInitProxyServerEntry.Text))
+                  await SecureStorage.Default.SetAsync("Proxyaddr", ConInitProxyServerEntry.Text.ToString());
 
                TransportMode uMode;
                switch (ConnectionTypeComboBox.SelectedIndex)
@@ -269,6 +289,9 @@ namespace MozVpnMAUI
                   HTTPProxyAddress.Text = "http://127.0.0.1:" + Manager.HTTPPort;
                   isConnected = true;
                   UDPStatusLabel.TextColor = Colors.Lime;
+#if ANDROID
+                  TryStartVpnMode();
+#endif
                   break;
                case StatusResult.UDPConnecting:
                   UDPStatusLabel.Text = "Connecting...";
@@ -280,6 +303,9 @@ namespace MozVpnMAUI
                   break;
                case StatusResult.UDPDisconnected:
                   isConnected = false;
+#if ANDROID
+                  StopVpnMode();
+#endif
                   StaticInformation.CallServiceStop();
                   ToggleServerConnectionSwitch.IsToggled = false;
                   ToggleServerConnectionSwitch_Toggled(this, new ToggledEventArgs(false));
@@ -318,6 +344,63 @@ namespace MozVpnMAUI
             }
          });
       }
+
+      private void TunModeCheckBox_CheckedChanged(object sender, CheckedChangedEventArgs e)
+      {
+#if ANDROID
+         if (e.Value)
+         {
+            TryStartVpnMode();
+         }
+         else
+         {
+            StopVpnMode();
+         }
+#endif
+      }
+
+#if ANDROID
+      private void TryStartVpnMode()
+      {
+         if (!TunModeCheckBox.IsChecked || !isConnected || Manager == null)
+         {
+            return;
+         }
+         if (!EnsureVpnPermission())
+         {
+            Logger.Log("VPN permission not granted yet.");
+            return;
+         }
+         if (string.IsNullOrWhiteSpace(vlessUri))
+         {
+            Logger.Log("VLESS config is empty.");
+            return;
+         }
+         Intent intent = new Intent(Android.App.Application.Context, typeof(XrayVpnService));
+         intent.SetAction(XrayVpnService.ActionStart);
+         intent.PutExtra(XrayVpnService.ExtraVlessUri, vlessUri);
+         Android.App.Application.Context.StartForegroundService(intent);
+      }
+
+      private void StopVpnMode()
+      {
+         Intent intent = new Intent(Android.App.Application.Context, typeof(XrayVpnService));
+         intent.SetAction(XrayVpnService.ActionStop);
+         Android.App.Application.Context.StartService(intent);
+      }
+
+      private bool EnsureVpnPermission()
+      {
+         Intent? intent = VpnService.Prepare(Android.App.Application.Context);
+         if (intent == null)
+         {
+            return true;
+         }
+         var activity = Platform.CurrentActivity;
+         activity?.StartActivityForResult(intent, XrayVpnService.VpnRequestCode);
+         return false;
+      }
+#endif
       private void OneSecondTimerCallback(object Target)
       {
          if (isConnected)
@@ -432,17 +515,43 @@ namespace MozVpnMAUI
                });
             }
          });
-         await SecureStorage.Default.GetAsync("Proxyaddr").ContinueWith((task) =>
+        await SecureStorage.Default.GetAsync("Proxyaddr").ContinueWith((task) =>
+        {
+           if (task.Result != null)
+           {
+              this.Dispatcher.Dispatch(() =>
+              {
+                 string proxyAddr = task.Result;
+                 ConInitProxyServerEntry.Text = proxyAddr;
+              });
+           }
+        });
+#if ANDROID
+         await SecureStorage.Default.GetAsync("XrayVlessUri").ContinueWith((task) =>
          {
-            if (task.Result != null)
+            if (!string.IsNullOrWhiteSpace(task.Result))
             {
                this.Dispatcher.Dispatch(() =>
                {
-                  string proxyAddr = task.Result;
-                  ConInitProxyServerEntry.Text = proxyAddr;
+                  vlessUri = task.Result;
+                  if (XrayVlessConfigEntry != null)
+                  {
+                     XrayVlessConfigEntry.Text = vlessUri;
+                  }
+               });
+            }
+            else
+            {
+               this.Dispatcher.Dispatch(() =>
+               {
+                  if (XrayVlessConfigEntry != null)
+                  {
+                     XrayVlessConfigEntry.Text = DefaultVlessUri;
+                  }
                });
             }
          });
+#endif
       }
 
       private void StunServerPicker_SelectionChanged(object sender, SelectionChangedEventArgs e)

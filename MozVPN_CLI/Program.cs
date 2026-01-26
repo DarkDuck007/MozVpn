@@ -14,8 +14,8 @@ namespace MozVPN_CLI
     class MozConfig
     {
         public int MaxChannels { get; set; } = 32;
-        public string StunServer { get; set; } = "stun4.l.google.com:19302";
-        public string ServerAddress { get; set; } = "http://dirtypx.somee.com/";
+        public string StunServer { get; set; } = "https://stun.schlund.de:3478";
+        public string ServerAddress { get; set; } = "https://noisy-tree-58ff.topolly84.workers.dev/";
         public int Port { get; set; } = 6075;
         public int HPort { get; set; } = 6085;
         public bool SkipStun { get; set; } = false;

@@ -27,7 +27,17 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<AndroidNativeLibrary Include="Platforms\Android\lib\arm64-v8a\libxray.so" />
+		<AndroidNativeLibrary Include="Platforms\Android\lib\x86_64\libxray.so" />
+
+	</ItemGroup>
+	
+	<ItemGroup>
 	  <ProjectReference Include="..\..\DirtyProxy\STUN-master\STUN\STUN.csproj" />
 	  <ProjectReference Include="..\MozUtil\MozUtil.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <Folder Include="Platforms\Android\lib\arm64-v8a\" />
 	</ItemGroup>
 </Project>

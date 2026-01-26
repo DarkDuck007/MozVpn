@@ -63,11 +63,12 @@ namespace MozVpnWPF
             {
                DisconnectClicked = false;
                ToggleServerConnectionBtn.Content = "Disconnect";
-               if (ServerSelectionComboBox.SelectedItem.ToString() == null || StunServerSelectorComboBox.SelectedItem == null)
+               if (ServerSelectionComboBox.Text.ToString() == null || StunServerSelectorComboBox.SelectedItem == null)
                {
+                  MessageBox.Show("Select a server and STUN server first.", "Error");
                   throw new Exception("Dayum");
                }
-               ServerURL = ServerSelectionComboBox.SelectedItem.ToString();
+               ServerURL = ServerSelectionComboBox.Text.ToString();
                string StunServer;
                if (StunServerSelectorComboBox.SelectedItem.ToString() == "Auto")
                {

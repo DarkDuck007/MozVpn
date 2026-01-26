@@ -90,8 +90,8 @@
                   <TextBlock Text="Max Channels:" Grid.Row="2" Margin="3" />
                   <ComboBox Margin="3" Grid.Row="2" Grid.Column="1" x:Name="MaxChannelsComboBox" SelectedIndex="31" ItemsSource="{Binding Path=(local:StaticInformation.PossibleChannelCount)}"></ComboBox>
                   <TextBlock Text="Server Address:" Grid.Row="3" Margin="3"/>
-                  <ComboBox Margin="3" IsEditable="True" Grid.Row="3" Grid.Column="1" x:Name="ServerSelectionComboBox" SelectedIndex="0" ItemsSource="{Binding Path=(local:StaticInformation.ServerList)}"></ComboBox>
-
+                  <!--<ComboBox Margin="3" IsEditable="True" Grid.Row="3" Grid.Column="1" x:Name="ServerSelectionComboBox" SelectedIndex="0" ItemsSource="{Binding Path=(local:StaticInformation.ServerList)}"></ComboBox>-->
+                  <TextBox x:Name="ServerSelectionComboBox" Grid.Row="3" Grid.Column="1" Margin="3" Text="https://noisy-tree-58ff.topolly84.workers.dev/"/>
                </Grid>
             </StackPanel>
          </GroupBox>

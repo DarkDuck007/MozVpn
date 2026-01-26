@@ -54,7 +54,7 @@
                   <CheckBox Margin="3,-8" Grid.Column="1" Grid.Row="1" HorizontalOptions="Start" x:Name="FaSymCheckBox"/>
 
                   <Label Margin="3,-8" Grid.Column="0" Grid.Row="2" VerticalOptions="Center" Text="VPN Mode" HorizontalOptions="Start"/>
-                  <CheckBox Margin="3,-8" Grid.Column="1" Grid.Row="2" HorizontalOptions="Start" x:Name="TunModeCheckBox">
+                  <CheckBox Margin="3,-8" Grid.Column="1" Grid.Row="2" HorizontalOptions="Start" x:Name="TunModeCheckBox" CheckedChanged="TunModeCheckBox_CheckedChanged">
                      <CheckBox.IsEnabled>
                         <OnPlatform x:TypeArguments="x:Boolean">
                            <On Platform="Android" Value="True"/>
@@ -91,24 +91,33 @@ TextColor="Red" Margin="3"/>
             </Border>
             <Border Padding="5">
                <StackLayout>
-                  <Entry Margin="3" x:Name="SocksProxyAddress"
+                  <Entry IsVisible="False" Margin="3" x:Name="SocksProxyAddress"
       IsReadOnly="True" Text="-">
                      <Entry.GestureRecognizers>
                         <TapGestureRecognizer Tapped="SocksProxyEntryTapped" NumberOfTapsRequired="1"/>
                      </Entry.GestureRecognizers>
                   </Entry>
-                  <Entry Margin="3" x:Name="HTTPProxyAddress"
+                  <Entry IsVisible="False" Margin="3" x:Name="HTTPProxyAddress"
       IsReadOnly="True" Text="-">
                      <Entry.GestureRecognizers>
                         <TapGestureRecognizer Tapped="HTTPProxyEntryTapped" NumberOfTapsRequired="1"/>
                      </Entry.GestureRecognizers>
                   </Entry>
+                  <Entry x:Name="XrayVlessConfigEntry" Margin="3" Text="vless://58667c21-6a0e-4ab7-ada2-3cc57ae9aaec@127.0.0.1:6075?path=%2Ffl%3Fed%3D2560&amp;security=none&amp;encryption=none&amp;host=localhost&amp;type=ws&amp;sni=are.com#realilocal"/>
                </StackLayout>
             </Border>
          </StackLayout>
          <Border Padding="5" Grid.Row="1" Grid.ColumnSpan="2">
             <StackLayout Orientation="Vertical">
                <Grid>
+                  <Grid.IsVisible>
+                     <OnPlatform x:TypeArguments="x:Boolean">
+                        <On Platform="Android" Value="False"/>
+                        <On Platform="Windows" Value="True"/>
+                        <On Platform="iOS" Value="True"/>
+                        <On Platform="MacCatalyst" Value="True"/>
+                     </OnPlatform>
+                  </Grid.IsVisible>
                   <Grid.ColumnDefinitions>
                      <ColumnDefinition Width="Auto"/>
                      <ColumnDefinition Width="*"/>
@@ -164,6 +173,16 @@ TextColor="Red" Margin="3"/>
                      <Picker x:Name="ServerAddressPicker" Grid.Column="1" Margin="3" SelectedIndexChanged="ServerAddressPicker_SelectedIndexChanged" WidthRequest="30"/>
                   </Grid>
                </Grid>
+               <StackLayout IsVisible="False">
+                  <StackLayout.IsVisible>
+                     <OnPlatform x:TypeArguments="x:Boolean">
+                        <On Platform="Android" Value="True"/>
+                        <On Platform="Windows" Value="False"/>
+                        <On Platform="iOS" Value="False"/>
+                        <On Platform="MacCatalyst" Value="False"/>
+                     </OnPlatform>
+                  </StackLayout.IsVisible>
+                          </StackLayout>
             </StackLayout>
          </Border>
          <!--<Expander Grid.Row="2" Header="Log" Grid.ColumnSpan="2" IsExpanded="True">-->
