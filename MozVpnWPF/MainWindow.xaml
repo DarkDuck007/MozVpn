@@ -70,6 +70,7 @@
                <Grid>
                   <Grid.ColumnDefinitions>
                      <ColumnDefinition Width="Auto"/>
+                     <ColumnDefinition Width="2*"/>
                      <ColumnDefinition Width="*"/>
                   </Grid.ColumnDefinitions>
                   <Grid.RowDefinitions>
@@ -79,19 +80,20 @@
                      <RowDefinition Height="Auto"/>
                   </Grid.RowDefinitions>
                   <TextBlock Text="Stun Server:" Margin="3" Grid.Column="0"/>
-                  <ComboBox x:Name="StunServerSelectorComboBox" IsEditable="True" Grid.Column="1" SelectedIndex="0" Margin="3" ItemsSource="{Binding Path=(local:StaticInformation.StunServers)}"></ComboBox>
+                  <TextBox x:Name="StunServerCustomEntry" Grid.Column="1" Margin="3" Text="stun.l.google.com:19302"/>
+                  <ComboBox x:Name="StunServerSelectorComboBox" IsEditable="True" Grid.Column="2" SelectedIndex="0" Margin="3" ItemsSource="{Binding Path=(local:StaticInformation.StunServers)}" SelectionChanged="StunServerSelectorComboBox_SelectionChanged"></ComboBox>
                   <TextBlock Text="ConnectionType" Margin="3" Grid.Column="0" Grid.Row="1"/>
-                  <ComboBox x:Name="ConnectionTypeComboBox" Margin="3" SelectedIndex="0" IsEditable="False" Grid.Column="1" Grid.Row="1">
+                  <ComboBox x:Name="ConnectionTypeComboBox" Grid.ColumnSpan="2" Margin="3" SelectedIndex="0" IsEditable="False" Grid.Column="1" Grid.Row="1">
                      <ComboBoxItem>Reliable</ComboBoxItem>
                      <ComboBoxItem>Unreliable</ComboBoxItem>
                      <ComboBoxItem>TCP</ComboBoxItem>
                      <ComboBoxItem>BALETUN</ComboBoxItem>
                   </ComboBox>
                   <TextBlock Text="Max Channels:" Grid.Row="2" Margin="3" />
-                  <ComboBox Margin="3" Grid.Row="2" Grid.Column="1" x:Name="MaxChannelsComboBox" SelectedIndex="31" ItemsSource="{Binding Path=(local:StaticInformation.PossibleChannelCount)}"></ComboBox>
+                  <ComboBox Margin="3" Grid.Row="2" Grid.Column="1" x:Name="MaxChannelsComboBox"  Grid.ColumnSpan="2"  SelectedIndex="31" ItemsSource="{Binding Path=(local:StaticInformation.PossibleChannelCount)}"></ComboBox>
                   <TextBlock Text="Server Address:" Grid.Row="3" Margin="3"/>
-                  <!--<ComboBox Margin="3" IsEditable="True" Grid.Row="3" Grid.Column="1" x:Name="ServerSelectionComboBox" SelectedIndex="0" ItemsSource="{Binding Path=(local:StaticInformation.ServerList)}"></ComboBox>-->
-                  <TextBox x:Name="ServerSelectionComboBox" Grid.Row="3" Grid.Column="1" Margin="3" Text="https://noisy-tree-58ff.topolly84.workers.dev/"/>
+                  <TextBox x:Name="ServerSelectionCustomEntry" Grid.Row="3" Grid.Column="1" Margin="3" Text="https://noisy-tree-58ff.topolly84.workers.dev/"/>
+                  <ComboBox Margin="3" IsEditable="True" Grid.Row="3" Grid.Column="2" x:Name="ServerSelectionComboBoxreal" SelectedIndex="0" ItemsSource="{Binding Path=(local:StaticInformation.ServerList)}" SelectionChanged="ServerSelectionComboBoxreal_SelectionChanged"></ComboBox>
                </Grid>
             </StackPanel>
          </GroupBox>

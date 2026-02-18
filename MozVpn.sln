@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 17
-VisualStudioVersion = 17.6.33815.320
+# Visual Studio Version 18
+VisualStudioVersion = 18.2.11415.280 d18.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MozUtil", "MozUtil\MozUtil.csproj", "{C6D5D4BE-1744-4501-9A33-E7F66B62D362}"
 EndProject
@@ -32,6 +32,10 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MozVPNMaui2", "MozVPNMaui2\MozVPNMaui2.csproj", "{A559E2C2-7B14-4838-8F33-C3D91E96DE5F}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MozVPN_CLI", "MozVPN_CLI\MozVPN_CLI.csproj", "{33916549-6832-4F89-A22F-795B447C0ED1}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "UDPBeam", "UDPBeam", "{95AFAF5C-09ED-49D7-AE8C-9CA665A4EFBD}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UdpBeam_Core", "UdpBeam_Core\UdpBeam_Core.csproj", "{6B1EFBF3-C14C-4145-88F8-8FDA94E1BB59}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -167,9 +171,20 @@ Global
 		{33916549-6832-4F89-A22F-795B447C0ED1}.Release|Any CPU.Build.0 = Release|Any CPU
 		{33916549-6832-4F89-A22F-795B447C0ED1}.Release|ARM32.ActiveCfg = Release|Any CPU
 		{33916549-6832-4F89-A22F-795B447C0ED1}.Release|ARM32.Build.0 = Release|Any CPU
+		{6B1EFBF3-C14C-4145-88F8-8FDA94E1BB59}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6B1EFBF3-C14C-4145-88F8-8FDA94E1BB59}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6B1EFBF3-C14C-4145-88F8-8FDA94E1BB59}.Debug|ARM32.ActiveCfg = Debug|Any CPU
+		{6B1EFBF3-C14C-4145-88F8-8FDA94E1BB59}.Debug|ARM32.Build.0 = Debug|Any CPU
+		{6B1EFBF3-C14C-4145-88F8-8FDA94E1BB59}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6B1EFBF3-C14C-4145-88F8-8FDA94E1BB59}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6B1EFBF3-C14C-4145-88F8-8FDA94E1BB59}.Release|ARM32.ActiveCfg = Release|Any CPU
+		{6B1EFBF3-C14C-4145-88F8-8FDA94E1BB59}.Release|ARM32.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{6B1EFBF3-C14C-4145-88F8-8FDA94E1BB59} = {95AFAF5C-09ED-49D7-AE8C-9CA665A4EFBD}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {14D40078-7F02-485B-B5DD-3C182852ABC1}

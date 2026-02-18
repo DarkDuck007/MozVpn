@@ -22,7 +22,6 @@ namespace MozUtil
          const string userRoot = "HKEY_CURRENT_USER";
          const string subkey = "Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings";
          const string keyName = userRoot + "\\" + subkey;
-#if Windows
          if (proxyhost.Length != 0)
             Registry.SetValue(keyName, "ProxyServer", proxyhost);
          Registry.SetValue(keyName, "ProxyEnable", proxyEnabled ? "1" : "0", RegistryValueKind.DWord);
@@ -33,7 +32,6 @@ namespace MozUtil
          // They cause the OS to refresh the settings, causing IP to realy update
          InternetSetOption(IntPtr.Zero, INTERNET_OPTION_SETTINGS_CHANGED, IntPtr.Zero, 0);
          InternetSetOption(IntPtr.Zero, INTERNET_OPTION_REFRESH, IntPtr.Zero, 0);
-#endif
       }
    }
 }

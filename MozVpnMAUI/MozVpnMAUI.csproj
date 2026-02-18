@@ -8,12 +8,12 @@
 		<ImplicitUsings>enable</ImplicitUsings>
 
 		<ApplicationTitle>MozVpnMAUI</ApplicationTitle>
-		<ApplicationId>com.companyname.mozvpnmaui</ApplicationId>
+		<ApplicationId>com.darkduck.mozvpnmaui</ApplicationId>
 		<ApplicationIdGuid>cf232ee6-6705-42f4-88ef-01384f035d17</ApplicationIdGuid>
 		<ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
 		<ApplicationVersion>1</ApplicationVersion>
 
-		
+
 	</PropertyGroup>
 
 	<ItemGroup>
@@ -33,16 +33,15 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<AndroidNativeLibrary Include="Platforms\Android\lib\arm64-v8a\libxray.so" />
-		<AndroidNativeLibrary Include="Platforms\Android\lib\x86_64\libxray.so" />
-	</ItemGroup>
-	
-	<ItemGroup>
-	  <ProjectReference Include="..\..\DirtyProxy\STUN-master\STUN\STUN.csproj" />
-	  <ProjectReference Include="..\MozUtil\MozUtil.csproj" />
+		<AndroidNativeLibrary Include="Platforms\Android\lib\arm64-v8a\sing-box-bin" />
 	</ItemGroup>
 
 	<ItemGroup>
-	  <Folder Include="Platforms\Android\lib\arm64-v8a\" />
+		<ProjectReference Include="..\..\DirtyProxy\STUN-master\STUN\STUN.csproj" />
+		<ProjectReference Include="..\MozUtil\MozUtil.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<Folder Include="Platforms\Android\lib\arm64-v8a\" />
 	</ItemGroup>
 </Project>

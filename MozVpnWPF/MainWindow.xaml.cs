@@ -2,28 +2,16 @@
 using MozUtil.NatUtils;
 using MozUtil.Types;
 using ScottPlot;
-using STUN;
 using System;
-using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
-using System.Net.NetworkInformation;
-using System.Net.Sockets;
 using System.Reflection;
-using System.Security.RightsManagement;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Controls.Primitives;
-using System.Windows.Data;
-using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
 
 namespace MozVpnWPF
 {
@@ -53,9 +41,9 @@ namespace MozVpnWPF
       int TimerCounter = 0;
       private void ToggleServerConnectionBtn_Click(object sender, RoutedEventArgs e)
       {
-         if (!ServerSelectionComboBox.Text.EndsWith("/"))
+         if (!ServerSelectionCustomEntry.Text.EndsWith("/"))
          {
-            ServerSelectionComboBox.Text += "/";
+            ServerSelectionCustomEntry.Text += "/";
          }
          try
          {
@@ -63,12 +51,12 @@ namespace MozVpnWPF
             {
                DisconnectClicked = false;
                ToggleServerConnectionBtn.Content = "Disconnect";
-               if (ServerSelectionComboBox.Text.ToString() == null || StunServerSelectorComboBox.SelectedItem == null)
+               if (string.IsNullOrWhiteSpace(ServerSelectionCustomEntry.Text.ToString()) || string.IsNullOrWhiteSpace(StunServerCustomEntry.Text))
                {
                   MessageBox.Show("Select a server and STUN server first.", "Error");
                   throw new Exception("Dayum");
                }
-               ServerURL = ServerSelectionComboBox.Text.ToString();
+               ServerURL = ServerSelectionCustomEntry.Text.ToString();
                string StunServer;
                if (StunServerSelectorComboBox.SelectedItem.ToString() == "Auto")
                {
@@ -76,7 +64,7 @@ namespace MozVpnWPF
                }
                else
                {
-                  StunServer = StunServerSelectorComboBox.SelectedItem.ToString();
+                  StunServer = StunServerCustomEntry.Text.ToString();
                }
                byte MaxChannels = byte.Parse(MaxChannelsComboBox.SelectedItem.ToString());
                TransportMode uMode;
@@ -524,6 +512,20 @@ namespace MozVpnWPF
                AruRelaysInfo.Add(TunInfo);
             }
          }
+      }
+
+      private void StunServerSelectorComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+      {
+         if (!string.IsNullOrWhiteSpace(StunServerSelectorComboBox.SelectedItem?.ToString()))
+            StunServerCustomEntry.Text = StunServerSelectorComboBox.SelectedItem.ToString();
+
+      }
+
+      private void ServerSelectionComboBoxreal_SelectionChanged(object sender, SelectionChangedEventArgs e)
+      {
+         if (!string.IsNullOrWhiteSpace(ServerSelectionComboBoxreal.SelectedItem?.ToString()))
+            ServerSelectionCustomEntry.Text = ServerSelectionComboBoxreal.SelectedItem.ToString();
+
       }
    }
 }

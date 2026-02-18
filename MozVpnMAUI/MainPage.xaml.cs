@@ -116,16 +116,16 @@ namespace MozVpnMAUI
 
                byte MaxChannels = byte.Parse(MaxChannelsComboBox.SelectedItem.ToString());
 #if ANDROID
-               vlessUri = XrayVlessConfigEntry?.Text?.Trim();
-               if (string.IsNullOrWhiteSpace(vlessUri))
-               {
-                  vlessUri = DefaultVlessUri;
-                  if (XrayVlessConfigEntry != null)
-                  {
-                     XrayVlessConfigEntry.Text = vlessUri;
-                  }
-               }
-               await SecureStorage.Default.SetAsync("XrayVlessUri", vlessUri);
+               //vlessUri = XrayVlessConfigEntry?.Text?.Trim();
+               //if (string.IsNullOrWhiteSpace(vlessUri))
+               //{
+               //   vlessUri = DefaultVlessUri;
+               //   if (XrayVlessConfigEntry != null)
+               //   {
+               //      XrayVlessConfigEntry.Text = vlessUri;
+               //   }
+               //}
+               //await SecureStorage.Default.SetAsync("XrayVlessUri", vlessUri);
 #endif
                await SecureStorage.Default.SetAsync("Serveraddr", ServerAddressEntry.Text);
                await SecureStorage.Default.SetAsync("Stunaddr", StunServerEntry.Text);
@@ -527,30 +527,30 @@ namespace MozVpnMAUI
            }
         });
 #if ANDROID
-         await SecureStorage.Default.GetAsync("XrayVlessUri").ContinueWith((task) =>
-         {
-            if (!string.IsNullOrWhiteSpace(task.Result))
-            {
-               this.Dispatcher.Dispatch(() =>
-               {
-                  vlessUri = task.Result;
-                  if (XrayVlessConfigEntry != null)
-                  {
-                     XrayVlessConfigEntry.Text = vlessUri;
-                  }
-               });
-            }
-            else
-            {
-               this.Dispatcher.Dispatch(() =>
-               {
-                  if (XrayVlessConfigEntry != null)
-                  {
-                     XrayVlessConfigEntry.Text = DefaultVlessUri;
-                  }
-               });
-            }
-         });
+         //await SecureStorage.Default.GetAsync("XrayVlessUri").ContinueWith((task) =>
+         //{
+         //   if (!string.IsNullOrWhiteSpace(task.Result))
+         //   {
+         //      this.Dispatcher.Dispatch(() =>
+         //      {
+         //         vlessUri = task.Result;
+         //         if (XrayVlessConfigEntry != null)
+         //         {
+         //            XrayVlessConfigEntry.Text = vlessUri;
+         //         }
+         //      });
+         //   }
+         //   else
+         //   {
+         //      this.Dispatcher.Dispatch(() =>
+         //      {
+         //         if (XrayVlessConfigEntry != null)
+         //         {
+         //            XrayVlessConfigEntry.Text = DefaultVlessUri;
+         //         }
+         //      });
+         //   }
+         //});
 #endif
       }
 

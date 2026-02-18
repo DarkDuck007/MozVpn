@@ -91,19 +91,19 @@ TextColor="Red" Margin="3"/>
             </Border>
             <Border Padding="5">
                <StackLayout>
-                  <Entry IsVisible="False" Margin="3" x:Name="SocksProxyAddress"
+                  <Entry IsVisible="True" Margin="3" x:Name="SocksProxyAddress"
       IsReadOnly="True" Text="-">
                      <Entry.GestureRecognizers>
                         <TapGestureRecognizer Tapped="SocksProxyEntryTapped" NumberOfTapsRequired="1"/>
                      </Entry.GestureRecognizers>
                   </Entry>
-                  <Entry IsVisible="False" Margin="3" x:Name="HTTPProxyAddress"
+                  <Entry IsVisible="True" Margin="3" x:Name="HTTPProxyAddress"
       IsReadOnly="True" Text="-">
                      <Entry.GestureRecognizers>
                         <TapGestureRecognizer Tapped="HTTPProxyEntryTapped" NumberOfTapsRequired="1"/>
                      </Entry.GestureRecognizers>
                   </Entry>
-                  <Entry x:Name="XrayVlessConfigEntry" Margin="3" Text="vless://58667c21-6a0e-4ab7-ada2-3cc57ae9aaec@127.0.0.1:6075?path=%2Ffl%3Fed%3D2560&amp;security=none&amp;encryption=none&amp;host=localhost&amp;type=ws&amp;sni=are.com#realilocal"/>
+                  <!--<Entry x:Name="XrayVlessConfigEntry" Margin="3" Text="vless://58667c21-6a0e-4ab7-ada2-3cc57ae9aaec@127.0.0.1:6075?path=%2Ffl%3Fed%3D2560&amp;security=none&amp;encryption=none&amp;host=localhost&amp;type=ws&amp;sni=are.com#realilocal"/>-->
                </StackLayout>
             </Border>
          </StackLayout>

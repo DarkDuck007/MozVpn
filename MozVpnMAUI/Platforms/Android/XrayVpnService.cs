@@ -7,14 +7,16 @@ using Android.OS;
 using Android.Systems;
 using AndroidX.Core.App;
 using Java.Lang;
-using JavaProcess = Java.Lang.Process;
 using Microsoft.Maui.Storage;
-using MozVpnMAUI;
 using MozUtil;
+using MozVpnMAUI;
 using System;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Threading.Tasks;
+using JavaProcess = Java.Lang.Process;
 
 namespace MozVpnMAUI.Platforms.Android
 {
@@ -33,11 +35,16 @@ namespace MozVpnMAUI.Platforms.Android
       private const int NotificationId = 4242;
       private const string NotificationChannelName = "MozVPN VPN Mode";
 
+      private const int SocksPort = 6075;
       private ParcelFileDescriptor? tunInterface;
       private ParcelFileDescriptor? tunPfd;
       private int tunFd = -1;
-      private JavaProcess? xrayProcess;
+      private int tunFdCopy = -1;
+      private JavaProcess? tun2SocksProcess;
       private bool isRunning;
+
+      //[DllImport("tun2socks", EntryPoint = "StartTun2Socks")]
+      //public static extern void StartTun2Socks(int fd, string proxyAddr, string dnsServer);
 
       public override StartCommandResult OnStartCommand(Intent? intent, StartCommandFlags flags, int startId)
       {
@@ -94,7 +101,7 @@ namespace MozVpnMAUI.Platforms.Android
          }
       }
 
-      private void StartVpn(string vlessUri)
+      private async Task StartVpn(string vlessUri)
       {
          if (isRunning)
          {
@@ -103,27 +110,27 @@ namespace MozVpnMAUI.Platforms.Android
 
          Builder builder = new Builder(this);
          builder.SetSession("MozVPN");
-         builder.AddAddress("10.0.0.2", 32);
+         builder.AddAddress("10.0.0.1", 24);
          builder.AddRoute("0.0.0.0", 0);
-         builder.AddDnsServer("1.1.1.1");
-         builder.AddDnsServer("8.8.8.8");
-         try
-         {
-            builder.AddAddress("fd00:1:fd00:1::1", 128);
-            builder.AddRoute("::", 0);
-         }
-         catch (System.Exception ex)
-         {
-            Logger.Log(ex.Message + ex.StackTrace);
-         }
-         try
-         {
-            builder.SetMtu(1500);
-         }
-         catch (System.Exception ex)
-         {
-            Logger.Log(ex.Message + ex.StackTrace);
-         }
+         //builder.AddDnsServer("1.1.1.1");
+         //builder.AddDnsServer("8.8.8.8");
+         //try
+         //{
+         //   builder.AddAddress("fd00:1:fd00:1::1", 128);
+         //   builder.AddRoute("::", 0);
+         //}
+         //catch (System.Exception ex)
+         //{
+         //   Logger.Log(ex.Message + ex.StackTrace);
+         //}
+         //try
+         //{
+         //   builder.SetMtu(1500);
+         //}
+         //catch (System.Exception ex)
+         //{
+         //   Logger.Log(ex.Message + ex.StackTrace);
+         //}
          try
          {
             builder.AddDisallowedApplication(PackageName);
@@ -139,63 +146,135 @@ namespace MozVpnMAUI.Platforms.Android
             StopSelf();
             return;
          }
+         //try
+         //{
+         //   tunFd = tunInterface.Fd;
+         //   const int F_GETFD = 1;
+         //   const int F_SETFD = 2;
+         //   int flags = Os.FcntlInt(tunInterface.FileDescriptor, F_GETFD, 0);
+         //   const int FD_CLOEXEC = 1;
+         //   Os.FcntlInt(tunInterface.FileDescriptor, F_SETFD, flags & ~FD_CLOEXEC);
+
+         //   tunFdCopy = Os.Dup(tunFd); // Duplicate the file descriptor
+         //   Logger.Log($"Tun fd: {tunFd}, Tun fd Copy: {tunFdCopy}");
+         //}
+         //catch (System.Exception ex)
+         //{
+         //   Logger.Log(ex.Message + ex.StackTrace);
+         //   StopSelf();
+         //   return;
+         //}
+
+         //string? tun2SocksPath = EnsureTun2SocksBinary();
+         //if (string.IsNullOrWhiteSpace(tun2SocksPath))
+         //{
+         //   Logger.Log("tun2socks binary not found in app package.");
+         //   StopSelf();
+         //   return;
+         //}
+
+         //if (!StartTun2Socks(tun2SocksPath, tunFdCopy))
+         //{
+         //   Logger.Log("Failed to start tun2socks process.");
+         //   StopSelf();
+         //   return;
+         //}
+         //Logger.Log($"tun2socks started on fd {tunFdCopy} -> 127.0.0.1:{SocksPort}");
+
+
+         int fd = tunInterface.Fd;
          try
          {
-            tunFd = tunInterface.DetachFd();
-            tunPfd = global::Android.OS.ParcelFileDescriptor.AdoptFd(tunFd);
-            const int F_GETFD = 1;
-            const int F_SETFD = 2;
-            int flags = Os.FcntlInt(tunPfd.FileDescriptor, F_GETFD, 0);
-            const int FD_CLOEXEC = 1;
-            Os.FcntlInt(tunPfd.FileDescriptor, F_SETFD, flags & ~FD_CLOEXEC);
-            Logger.Log($"Tun fd: {tunFd}, flags: {flags}");
+            await StartSingBox(fd);
+
          }
          catch (System.Exception ex)
          {
-            Logger.Log(ex.Message + ex.StackTrace);
-            StopSelf();
-            return;
+            System.Diagnostics.Debug.WriteLine(ex);
          }
+         // 1. Get paths
+         //int fd = tunInterface.Fd;
+         //Task.Run(() =>
+         //{
+         //   try
+         //   {
+         //      StartTun2Socks(fd, "127.0.0.1:6075", "8.8.8.8");
 
-         string? xrayPath = EnsureXrayBinary();
-         if (string.IsNullOrWhiteSpace(xrayPath))
-         {
-            Logger.Log("Xray binary not found in app package.");
-            StopSelf();
-            return;
-         }
-
-         string appData = FileSystem.AppDataDirectory;
-         string configPath;
-         try
-         {
-            configPath = BuildConfig(vlessUri, tunFd);
-         }
-         catch (System.Exception ex)
-         {
-            Logger.Log(ex.Message + ex.StackTrace);
-            StopSelf();
-            return;
-         }
-         if (!StartXrayProcess(xrayPath, configPath, appData))
-         {
-            Logger.Log("Failed to start Xray process.");
-            StopSelf();
-            return;
-         }
-         Logger.Log($"Xray config: {configPath}");
-         Logger.Log($"Xray assets: {appData}");
-
+         //   }
+         //   catch (System.Exception ex)
+         //   {
+         //      Logger.Log(ex.Message + ex.StackTrace);
+         //   }
+         //});
          isRunning = true;
       }
+      public async Task StartSingBox(int tunFd)
+      {
+         try
+         {
+            string workingConfigPath = Path.Combine(FileSystem.Current.AppDataDirectory, "active_config.json");
 
+            // 1. Read the template safely
+            string json;
+            using (Stream stream = await FileSystem.Current.OpenAppPackageFileAsync("Config.json"))
+            using (StreamReader reader = new StreamReader(stream))
+            {
+               json = await reader.ReadToEndAsync();
+            }
+
+            if (string.IsNullOrWhiteSpace(json))
+               throw new System.Exception("Asset 'Config.json' was found but is empty or could not be read.");
+
+
+            // 3. Write and Force Flush
+            await File.WriteAllTextAsync(workingConfigPath, json);
+
+            // 4. Verification
+            var info = new FileInfo(workingConfigPath);
+            System.Diagnostics.Debug.WriteLine($"Config written to: {workingConfigPath} ({info.Length} bytes)");
+
+            if (info.Length == 0)
+               throw new System.Exception("Write failed: working config is 0 bytes.");
+
+            // 5. Launch Sing-Box
+            var binPath = GetNativeBinaryPath("sing-box-bin");
+            var process = new System.Diagnostics.Process();
+            process.StartInfo.FileName = binPath;
+            process.StartInfo.Arguments = $"run -c \"{workingConfigPath}\""; // Quotes handle spaces in paths
+            process.StartInfo.EnvironmentVariables["ENABLE_DEPRECATED_TUN_ADDRESS_X"] = "true";
+            process.StartInfo.EnvironmentVariables["SKIP_PACKAGE_CHECK"] = "1";
+            process.StartInfo.EnvironmentVariables["TUN_FD"] = tunFd.ToString();
+            process.StartInfo.UseShellExecute = false;
+            process.StartInfo.CreateNoWindow = true;
+            process.StartInfo.RedirectStandardOutput = true;
+            process.StartInfo.RedirectStandardError = true;
+
+            process.OutputDataReceived += (s, e) => {
+               if (!string.IsNullOrEmpty(e.Data))
+                  System.Diagnostics.Debug.WriteLine($"[Sing-Box] {e.Data}");
+            };
+            process.ErrorDataReceived += (s, e) => {
+               if (!string.IsNullOrEmpty(e.Data))
+                  System.Diagnostics.Debug.WriteLine($"[Sing-Box ERROR] {e.Data}");
+            };
+
+            process.Start();
+            process.BeginOutputReadLine();
+            process.BeginErrorReadLine();
+         }
+         catch (System.Exception ex)
+         {
+            System.Diagnostics.Debug.WriteLine($"FATAL: {ex.Message}");
+            throw;
+         }
+      }
       private void StopVpn()
       {
          isRunning = false;
          try
          {
-            xrayProcess?.Destroy();
-            xrayProcess = null;
+            tun2SocksProcess?.Destroy();
+            tun2SocksProcess = null;
          }
          catch (System.Exception ex)
          {
@@ -204,13 +283,28 @@ namespace MozVpnMAUI.Platforms.Android
 
          try
          {
-            tunPfd?.Dispose();
-            tunPfd = null;
+            tunInterface?.Close();
             tunInterface = null;
          }
          catch (System.Exception ex)
          {
             Logger.Log(ex.Message + ex.StackTrace);
+         }
+         tunFd = -1;
+         if (tunFdCopy != -1)
+         {
+            try
+            {
+               using (var pfdToClose = global::Android.OS.ParcelFileDescriptor.AdoptFd(tunFdCopy))
+               {
+                  pfdToClose.Close();
+               }
+            }
+            catch (System.Exception ex)
+            {
+               Logger.Log(ex.Message + ex.StackTrace);
+            }
+            tunFdCopy = -1;
          }
 
          StopForeground(true);
@@ -229,7 +323,7 @@ namespace MozVpnMAUI.Platforms.Android
          base.OnDestroy();
       }
 
-      private string? EnsureXrayBinary()
+      private string? EnsureTun2SocksBinary()
       {
          try
          {
@@ -238,15 +332,10 @@ namespace MozVpnMAUI.Platforms.Android
             {
                return null;
             }
-            string soPath = Path.Combine(nativeDir, "libxray.so");
+            string soPath = Path.Combine(nativeDir, "libtun2socks.so");
             if (global::System.IO.File.Exists(soPath))
             {
                return soPath;
-            }
-            string exePath = Path.Combine(nativeDir, "xray");
-            if (global::System.IO.File.Exists(exePath))
-            {
-               return exePath;
             }
          }
          catch (System.Exception ex)
@@ -255,7 +344,38 @@ namespace MozVpnMAUI.Platforms.Android
          }
          return null;
       }
+      public string GetNativeBinaryPath(string binaryName)
+      {
+         // Android extracts files in the 'lib' folder to the ApplicationInfo.NativeLibraryDir
+         // If your file is 'sing-box-bin', Android usually renames it to 'libsing-box-bin.so' 
+         // or keeps it if it doesn't have an extension.
+         var context = global::Android.App.Application.Context;
+         string libDir = context.ApplicationInfo.NativeLibraryDir;
 
+         // Check for common naming patterns
+         string[] possibleNames = { binaryName, $"lib{binaryName}.so", binaryName + ".so" };
+
+         foreach (var name in possibleNames)
+         {
+            string fullPath = Path.Combine(libDir, name);
+            if (File.Exists(fullPath)) return fullPath;
+         }
+
+         throw new FileNotFoundException($"Could not find native binary {binaryName} in {libDir}");
+      }
+      public async Task<string> CopyAssetToInternalStorage(string assetName)
+      {
+         // Path: /data/user/0/com.company.app/files/Config.json
+         string targetPath = Path.Combine(FileSystem.Current.AppDataDirectory, assetName);
+
+         if (!File.Exists(targetPath))
+         {
+            using Stream inputStream = await FileSystem.Current.OpenAppPackageFileAsync(assetName);
+            using FileStream outputStream = File.Create(targetPath);
+            await inputStream.CopyToAsync(outputStream);
+         }
+         return targetPath;
+      }
       private string BuildConfig(string vlessUri, int tunFd)
       {
          string appData = FileSystem.AppDataDirectory;
@@ -263,6 +383,8 @@ namespace MozVpnMAUI.Platforms.Android
          EnsureXrayAssets(appData);
          try
          {
+            VlessOutboundConfig vless = ParseVlessUri(vlessUri);
+
             string json;
             using (Stream src = FileSystem.OpenAppPackageFileAsync("Config.json").GetAwaiter().GetResult())
             using (StreamReader reader = new StreamReader(src))
@@ -275,6 +397,62 @@ namespace MozVpnMAUI.Platforms.Android
             {
                throw new InvalidDataException("Config.json root must be a JSON object.");
             }
+
+            JsonArray? outbounds;
+            if (obj["outbounds"] is JsonArray arrOut)
+            {
+               outbounds = arrOut;
+            }
+            else
+            {
+               outbounds = new JsonArray();
+               obj["outbounds"] = outbounds;
+            }
+
+            JsonObject vlessOutbound = new JsonObject
+            {
+               ["tag"] = "proxy",
+               ["protocol"] = "vless",
+               ["settings"] = new JsonObject
+               {
+                  ["vnext"] = new JsonArray
+                  {
+                     new JsonObject
+                     {
+                        ["address"] = vless.Address,
+                        ["port"] = vless.Port,
+                        ["users"] = new JsonArray
+                        {
+                           new JsonObject
+                           {
+                              ["id"] = vless.UserId,
+                              ["encryption"] = vless.Encryption
+                           }
+                        }
+                     }
+                  }
+               },
+               ["streamSettings"] = new JsonObject
+               {
+                  ["network"] = vless.Network,
+                  ["security"] = vless.Security,
+                  ["wsSettings"] = new JsonObject
+                  {
+                     ["path"] = vless.Path,
+                     ["headers"] = new JsonObject
+                     {
+                        ["Host"] = vless.HostHeader
+                     }
+                  }
+               }
+            };
+
+            if (vless.Security != "none")
+            {
+               (vlessOutbound["streamSettings"] as JsonObject)["tlsSettings"] = new JsonObject { ["serverName"] = vless.ServerName };
+            }
+
+            outbounds.Insert(0, vlessOutbound);
 
             JsonArray inbounds;
             if (obj["inbounds"] is JsonArray arr)
@@ -295,8 +473,8 @@ namespace MozVpnMAUI.Platforms.Android
                {
                   ["fd"] = tunFd,
                   ["mtu"] = 1500,
-                  ["auto_route"] = false,
-                  ["stack"] = "system"
+                  ["auto_route"] = true,
+                  ["stack"] = "gvisor"
                }
             };
             inbounds.Insert(0, tunInbound);
@@ -329,7 +507,7 @@ namespace MozVpnMAUI.Platforms.Android
          string configPath = Path.Combine(appData, "xray_tun.json");
          EnsureXrayAssets(appData);
          VlessOutboundConfig vless = ParseVlessUri(vlessUri);
-      
+
          using var stream = FileSystem.OpenAppPackageFileAsync("Config.json").GetAwaiter().GetResult();
          using var reader = new StreamReader(stream);
 
@@ -363,13 +541,26 @@ namespace MozVpnMAUI.Platforms.Android
          }
       }
 
-      private bool StartXrayProcess(string xrayPath, string configPath, string assetDir)
+      private bool StartTun2Socks(string tun2SocksPath, int fd)
       {
          try
          {
-            string[] envp = new string[] { "XRAY_LOCATION_ASSET=" + assetDir };
-            xrayProcess = Runtime.GetRuntime().Exec(new string[] { xrayPath, "run", "-config", configPath }, envp);
-            StartLogPipes();
+            Java.Lang.Runtime.GetRuntime().Exec($"chmod 755 {tun2SocksPath}");
+            var process = new System.Diagnostics.Process();
+            process.StartInfo.FileName = tun2SocksPath;
+            // Use the 'fd://' syntax to pass your TUN interface
+            process.StartInfo.Arguments = $"-device fd://{tunFd} -proxy socks5://127.0.0.1:6075";
+            process.Start();
+            //string[] args = new[]
+
+            //{
+            //   tun2SocksPath,
+            //   "--device=fd://" + fd,
+            //   "--proxy=socks5://127.0.0.1:" + SocksPort,
+            //   "--loglevel=info"
+            //};
+            //tun2SocksProcess = Runtime.GetRuntime().Exec(args);
+            //StartLogPipes(tun2SocksProcess);
             return true;
          }
          catch (System.Exception ex)
@@ -481,19 +672,14 @@ namespace MozVpnMAUI.Platforms.Android
          return config;
       }
 
-      private void StartLogPipes()
+      private void StartLogPipes(JavaProcess process)
       {
-         if (xrayProcess == null)
-         {
-            return;
-         }
-
          string appData = FileSystem.AppDataDirectory;
-         string stdoutPath = Path.Combine(appData, "xray_stdout.log");
-         string stderrPath = Path.Combine(appData, "xray_stderr.log");
+         string stdoutPath = Path.Combine(appData, "tun2socks_stdout.log");
+         string stderrPath = Path.Combine(appData, "tun2socks_stderr.log");
 
-         Task.Run(() => CopyStreamToFile(xrayProcess.InputStream, stdoutPath));
-         Task.Run(() => CopyStreamToFile(xrayProcess.ErrorStream, stderrPath));
+         Task.Run(() => CopyStreamToFile(process.InputStream, stdoutPath));
+         Task.Run(() => CopyStreamToFile(process.ErrorStream, stderrPath));
       }
 
       private void CopyStreamToFile(Stream input, string path)
