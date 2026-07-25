@@ -7,15 +7,15 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MozUtil", "MozUtil\MozUtil.
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MozClientConsole", "MozClientConsole\MozClientConsole.csproj", "{5B1872A3-F2BD-43D7-B7BD-76747DA44122}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "STUN", "..\DirtyProxy\STUN-master\STUN\STUN.csproj", "{382D732C-8D72-4036-9647-1E9687914F93}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "STUN", "STUN\STUN\STUN.csproj", "{382D732C-8D72-4036-9647-1E9687914F93}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MozASPServer", "MozASPServer\MozASPServer.csproj", "{2345AD34-4F31-4DDA-AC3B-4EFE54974F31}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DownloadSpeedBenchLiteNet", "DownloadSpeedBenchLiteNet\DownloadSpeedBenchLiteNet.csproj", "{8B34E6EC-AD2D-48BD-B943-65DB69EB7DFE}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "LiteNetLib", "..\LiteNetLib-1.1.0\LiteNetLib\LiteNetLib.csproj", "{85B002D6-B322-4BDD-BEB3-1635C2CE4537}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "LiteNetLib", "LiteNetLib\LiteNetLib\LiteNetLib.csproj", "{85B002D6-B322-4BDD-BEB3-1635C2CE4537}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "HttpToSocks5Proxy", "..\HttpToSocks5Proxy-archived\src\HttpToSocks5Proxy\HttpToSocks5Proxy.csproj", "{EB3765AE-49AB-4051-AEF6-D2FCCF5F1FD3}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "HttpToSocks5Proxy", "HttpToSocks5Proxy\src\HttpToSocks5Proxy\HttpToSocks5Proxy.csproj", "{EB3765AE-49AB-4051-AEF6-D2FCCF5F1FD3}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MozVpnWPF", "MozVpnWPF\MozVpnWPF.csproj", "{1A6D2EA4-650B-460E-A115-0791D5C4D2E4}"
 EndProject

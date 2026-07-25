@@ -8,7 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\LiteNetLib-1.1.0\LiteNetLib\LiteNetLib.csproj" />
+    <ProjectReference Include="..\LiteNetLib\LiteNetLib\LiteNetLib.csproj" />
     <ProjectReference Include="..\MozUtil\MozUtil.csproj" />
   </ItemGroup>
 

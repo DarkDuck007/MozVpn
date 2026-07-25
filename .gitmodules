@@ -1,0 +1,9 @@
+[submodule "LiteNetLib"]
+	path = LiteNetLib
+	url = https://github.com/RevenantX/LiteNetLib.git
+[submodule "STUN"]
+	path = STUN
+	url = https://github.com/moien007/STUN.git
+[submodule "HttpToSocks5Proxy"]
+	path = HttpToSocks5Proxy
+	url = https://github.com/MihaZupan/HttpToSocks5Proxy.git

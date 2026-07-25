@@ -10,9 +10,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\DirtyProxy\STUN-master\STUN\STUN.csproj" />
-    <ProjectReference Include="..\..\HttpToSocks5Proxy-archived\src\HttpToSocks5Proxy\HttpToSocks5Proxy.csproj" />
-    <ProjectReference Include="..\..\LiteNetLib-1.1.0\LiteNetLib\LiteNetLib.csproj" />
+    <ProjectReference Include="..\STUN\STUN\STUN.csproj" />
+    <ProjectReference Include="..\HttpToSocks5Proxy\src\HttpToSocks5Proxy\HttpToSocks5Proxy.csproj" />
+    <ProjectReference Include="..\LiteNetLib\LiteNetLib\LiteNetLib.csproj" />
   </ItemGroup>
 
 </Project>

@@ -37,7 +37,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<ProjectReference Include="..\..\DirtyProxy\STUN-master\STUN\STUN.csproj" />
+		<ProjectReference Include="..\STUN\STUN\STUN.csproj" />
 		<ProjectReference Include="..\MozUtil\MozUtil.csproj" />
 	</ItemGroup>
 

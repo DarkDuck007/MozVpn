@@ -24,8 +24,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\DirtyProxy\STUN-master\STUN\STUN.csproj" />
-    <ProjectReference Include="..\..\LiteNetLib-1.1.0\LiteNetLib\LiteNetLib.csproj" />
+    <ProjectReference Include="..\STUN\STUN\STUN.csproj" />
+    <ProjectReference Include="..\LiteNetLib\LiteNetLib\LiteNetLib.csproj" />
     <ProjectReference Include="..\MozUtil\MozUtil.csproj" />
   </ItemGroup>
 
