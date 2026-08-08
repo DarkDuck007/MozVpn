@@ -6,13 +6,15 @@ namespace MozUtil.NatUtils
 {
    public enum ServerCommands
    {
-      BeginHolePunching,
-      PunchResult,
-      BeginUdpClient,
-      ServerStatusUpdate,
-      EndToEndPipeCreationResult,
-      AttemptReconnectLiteNet,
-      UdpRelayResult,
+      BeginHolePunching = 0,
+      PunchResult = 1,
+      BeginUdpClient = 2,
+      ServerStatusUpdate = 3,
+      EndToEndPipeCreationResult = 4,
+      AttemptReconnectLiteNet = 5,
+      UdpRelayResult = 6,
+      // Optional response to ClientCommands.ProtocolHello. Legacy clients ignore it.
+      ProtocolHello = 7,
       KeepAlive = 255
    }
 
@@ -23,6 +25,11 @@ namespace MozUtil.NatUtils
    }
    public class ServerCommandUtils
    {
+      public static byte[] BuildProtocolHelloCommand(MozProtocolCapabilities capabilities)
+      {
+         return MozProtocol.BuildHello((ushort)ServerCommands.ProtocolHello, capabilities);
+      }
+
       public static byte[] BuildServerStatusInformation(ServerStatusInformation ServerStatusInfo, int offset = 0)
       {
          int size = Marshal.SizeOf(ServerStatusInfo);

@@ -12,24 +12,26 @@ namespace MozUtil.NatUtils
    {
       public static STUNQueryResult IPDiscoverOnly(Socket SockToUse, string Address, int Timeout = 2000)
       {
-         if (!STUNUtils.TryParseHostAndPort(Address, out IPEndPoint stunEndPoint))
-            throw new Exception("Failed to resolve STUN server address");
+         if (!STUNUtils.TryParseHostAndPort(Address, SockToUse.AddressFamily, out IPEndPoint stunEndPoint))
+            throw new Exception($"Failed to resolve a {SockToUse.AddressFamily}-compatible address for STUN server '{Address}'");
          STUNClient.ReceiveTimeout = Timeout;
          var queryResult =
             STUNClient.Query(SockToUse, stunEndPoint, STUNQueryType.PublicIP, NATTypeDetectionRFC.Rfc3489);
+         EnsureMappedEndpoint(queryResult, Address);
          return queryResult;
       }
       public static STUNQueryResult GetStunResult(Socket SockToUse, string Address, int Timeout = 2000)
       {
          //string StunServerDef = "stun.schlund.de:3478";
          //string StunServerOrg = "stunserver.stunprotocol.org:3478";
-         if (!STUNUtils.TryParseHostAndPort(Address, out IPEndPoint stunEndPoint))
-            throw new Exception("Failed to resolve STUN server address");
+         if (!STUNUtils.TryParseHostAndPort(Address, SockToUse.AddressFamily, out IPEndPoint stunEndPoint))
+            throw new Exception($"Failed to resolve a {SockToUse.AddressFamily}-compatible address for STUN server '{Address}'");
 
          STUNClient.ReceiveTimeout = Timeout;
          //var queryResult = STUNClient.Query(stunEndPoint, STUNQueryType.ExactNAT, true);
          var queryResult =
             STUNClient.Query(SockToUse, stunEndPoint, STUNQueryType.ExactNAT, NATTypeDetectionRFC.Rfc3489);
+         EnsureMappedEndpoint(queryResult, Address);
          //if (queryResult.QueryError != STUNQueryError.Success)
          //   throw new Exception("Query Error: " + queryResult.QueryError.ToString());
 
@@ -37,6 +39,16 @@ namespace MozUtil.NatUtils
          //Console.WriteLine("LocalEndPoint: {0}", queryResult.LocalEndPoint);
          //Console.WriteLine("NAT Type: {0}", queryResult.NATType);
          return queryResult;
+      }
+
+      private static void EnsureMappedEndpoint(STUNQueryResult result, string serverAddress)
+      {
+         if (result.QueryError == STUNQueryError.Success && result.PublicEndPoint == null)
+         {
+            result.QueryError = STUNQueryError.BadResponse;
+            throw new InvalidOperationException(
+               $"STUN server '{serverAddress}' reported success without a mapped public endpoint.");
+         }
       }
 
       public static PortRange GetPortRange(int StunCount, string StunAddress, int StunTimeout = 5000)
@@ -54,10 +66,13 @@ namespace MozUtil.NatUtils
                try
                {
                   var StunRes = GetStunResult(item.Client, StunAddress, StunTimeout);
-                  if (StunRes.QueryError == STUNQueryError.Success)
+                  if (StunRes.QueryError == STUNQueryError.Success && StunRes.PublicEndPoint != null)
                   {
-                     StunResults.Add(StunRes);
-                     PublicPortsList.Add(StunRes.PublicEndPoint.Port);
+                     lock (StunResults)
+                     {
+                        StunResults.Add(StunRes);
+                        PublicPortsList.Add(StunRes.PublicEndPoint.Port);
+                     }
                   }
                }
                catch
@@ -70,6 +85,10 @@ namespace MozUtil.NatUtils
          Logger.Log($"Waiting for the {TasksList.Count} tasks to finish...");
          Task.WaitAll(TasksList.ToArray());
          Logger.Log($"Tasks finished, successful stuns: {StunResults.Count}/{StunCount}");
+         foreach (var stunQueryResult in StunResults)
+         {
+            Logger.Log($"Local {stunQueryResult.LocalEndPoint} Pub {stunQueryResult.PublicEndPoint} NAT: {stunQueryResult.NATType}");
+         }
          if (StunResults.Count == 0) throw new Exception("No successful stuns :(");
          foreach (int item in PublicPortsList) Console.Write(item + ", ");
          Console.WriteLine("\b\b \b");

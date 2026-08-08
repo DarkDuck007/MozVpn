@@ -1,0 +1,36 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Moz_Avalonia.App"
+             xmlns:local="using:Moz_Avalonia"
+             RequestedThemeVariant="Dark">
+             <!-- "Default" ThemeVariant follows system theme variant. "Dark" or "Light" are other available options. -->
+
+    <Application.DataTemplates>
+        <local:ViewLocator />
+    </Application.DataTemplates>
+
+    <Application.Styles>
+        <FluentTheme />
+        <Style Selector="Border.card">
+            <Setter Property="Background" Value="#121F2C" />
+            <Setter Property="BorderBrush" Value="#24384A" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Padding" Value="14" />
+        </Style>
+        <Style Selector="TextBlock.heading">
+            <Setter Property="FontSize" Value="20" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style Selector="TextBlock.muted">
+            <Setter Property="Foreground" Value="#8FA4B7" />
+        </Style>
+        <Style Selector="Button.accent">
+            <Setter Property="Background" Value="#2962FF" />
+            <Setter Property="Foreground" Value="White" />
+        </Style>
+        <Style Selector="Button.danger">
+            <Setter Property="Foreground" Value="#FF8A8A" />
+        </Style>
+    </Application.Styles>
+</Application>

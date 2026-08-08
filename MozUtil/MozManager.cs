@@ -173,7 +173,7 @@ namespace MozUtil
             int StunTimeout = StunStartTimeout;
             while (true)
             {
-                stunClient = new UdpClient();
+                stunClient = new UdpClient(AddressFamily.InterNetwork);
                 if (LocalMode)
                 {
                     await stunClient.SendAsync(new byte[] { 0 }, 1, new IPEndPoint(IPAddress.Loopback, 65535));
@@ -556,6 +556,10 @@ namespace MozUtil
                 //WebReq.Proxy = new WebProxy("127.0.0.1", 2081);
                 WebReq.Headers.Add("isConnected", isConnected.ToString());
                 WebReq.Headers.Add("KeepAlive", "false");
+                WebReq.Headers.Add(MozProtocol.VersionHeader, MozProtocol.CurrentVersion.ToString());
+                WebReq.Headers.Add(MozProtocol.MinimumVersionHeader, MozProtocol.MinimumVersion.ToString());
+                WebReq.Headers.Add(MozProtocol.CapabilitiesHeader,
+                    ((uint)MozProtocol.ClientCapabilities).ToString());
 
                 if (IsReconnect)
                 {

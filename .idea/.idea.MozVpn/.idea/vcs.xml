@@ -2,5 +2,8 @@
 <project version="4">
   <component name="VcsDirectoryMappings">
     <mapping directory="" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/HttpToSocks5Proxy" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/LiteNetLib" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/STUN" vcs="Git" />
   </component>
 </project>

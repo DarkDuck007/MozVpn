@@ -1,0 +1,42 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:services="using:Moz_Avalonia.Services"
+        xmlns:views="using:Moz_Avalonia.Views"
+        x:Class="Moz_Avalonia.Views.StunNatChoiceDialog"
+        x:DataType="views:StunNatChoiceDialog"
+        Title="Choose the trusted NAT result"
+        Width="620" Height="390" MinWidth="500" MinHeight="320"
+        CanResize="True" WindowStartupLocation="CenterOwner"
+        Background="#101D29">
+  <Grid Margin="18" RowDefinitions="Auto,*,Auto" RowSpacing="14">
+    <StackPanel Spacing="5">
+      <TextBlock Text="STUN servers disagree about your NAT type" FontSize="19" FontWeight="SemiBold" />
+      <TextBlock Text="Choose the result group you trust. Moz will use the fastest responding server in that group."
+                 Classes="muted" TextWrapping="Wrap" />
+    </StackPanel>
+
+    <ListBox x:Name="GroupsList" Grid.Row="1" ItemsSource="{Binding Groups}">
+      <ListBox.ItemTemplate>
+        <DataTemplate x:DataType="services:StunNatGroup">
+          <Border Classes="card" Padding="12" Margin="0,0,0,7" HorizontalAlignment="Stretch">
+            <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto" RowSpacing="6">
+              <TextBlock Text="{Binding NatType}" FontSize="17" FontWeight="SemiBold" />
+              <TextBlock Grid.Column="1" Text="{Binding Count, StringFormat={}{0} confirming server(s)}"
+                         Foreground="#4CC9F0" VerticalAlignment="Center" />
+              <TextBlock Grid.Row="1" Text="{Binding Servers}" Classes="muted"
+                         TextWrapping="Wrap" MaxLines="3" />
+              <TextBlock Grid.Row="1" Grid.Column="1"
+                         Text="{Binding FastestLatencyMs, StringFormat=fastest {0} ms}"
+                         Classes="muted" VerticalAlignment="Bottom" Margin="12,0,0,0" />
+            </Grid>
+          </Border>
+        </DataTemplate>
+      </ListBox.ItemTemplate>
+    </ListBox>
+
+    <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+      <Button Content="Do not apply" Click="CancelClicked" MinWidth="105" />
+      <Button Content="Trust selected group" Click="AcceptClicked" Classes="accent" MinWidth="150" />
+    </StackPanel>
+  </Grid>
+</Window>

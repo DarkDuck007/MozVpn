@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Buffers;
 using System.Net.Sockets;
+using System.Threading;
 using System.Threading.Tasks;
 using LiteNetLib;
 
@@ -10,6 +11,7 @@ namespace MozUtil
    {
       private readonly int CopyBufferLength = 4094;
       private readonly NetworkStream tcpClientToClientStream;
+      private int _closed;
 
       public MozLiteNetReliableConnection(ushort _ConnectionID, byte _ChannelID, TcpClient _Client, int _PeerID,
          ref NetManager LNManager, int MaxOutPackets)
@@ -117,6 +119,9 @@ namespace MozUtil
 
       public void Close()
       {
+         if (Interlocked.Exchange(ref _closed, 1) != 0)
+            return;
+
          try
          {
             ConnectionClosed?.Invoke(this, ConnectionID);

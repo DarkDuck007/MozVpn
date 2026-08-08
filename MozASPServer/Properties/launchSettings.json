@@ -1,21 +1,14 @@
-﻿{
-  "iisSettings": {
-    "windowsAuthentication": false,
-    "anonymousAuthentication": true,
-    "iisExpress": {
-      "applicationUrl": "http://localhost:11935",
-      "sslPort": 0
-    }
-  },
+{
   "profiles": {
-    "http": {
+    "MozASPServer": {
       "commandName": "Project",
-      "dotnetRunMessages": true,
       "launchBrowser": true,
-      "applicationUrl": "http://localhost:5142",
       "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development"
-      }
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "IsLocal": "True"
+      },
+      "dotnetRunMessages": true,
+      "applicationUrl": "http://0.0.0.0:5209"
     },
     "IIS Express": {
       "commandName": "IISExpress",
@@ -23,6 +16,22 @@
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"
       }
+    },
+    "Executable": {
+      "commandName": "Executable",
+      "launchBrowser": true,
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "dotnetRunMessages": true
+    }
+  },
+  "iisSettings": {
+    "windowsAuthentication": false,
+    "anonymousAuthentication": true,
+    "iisExpress": {
+      "applicationUrl": "http://0.0.0.0:46763",
+      "sslPort": 0
     }
   }
 }

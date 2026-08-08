@@ -14,6 +14,11 @@ namespace MozUtil.Types
 {
    public class ClientCommandUtils
    {
+      public static byte[] BuildProtocolHelloCommand()
+      {
+         return MozProtocol.BuildHello((ushort)ClientCommands.ProtocolHello, MozProtocol.ClientCapabilities);
+      }
+
       /// <summary>
       /// Set -1 to stop status streaming
       /// </summary>
@@ -146,13 +151,15 @@ namespace MozUtil.Types
    public enum ClientCommands
    {
       //Command value: 4 bytes (32bit) signed integer for interval miliseconds
-      RequestServerStats,
+      RequestServerStats = 0,
       //Command value: Destination address family (ipv4 or v6), Destination IP, Destination port (Binary),
       //Channel number (current client),ProtocolType(int from enum),
       //Reliability if protocoltype is udp(ignored if tcp)(int from enum)
       //OR (Not decided yet) ASCII encoded destination "ChannelNumber\nIP:DestPort\nProtocol:reliability(ignoredIfTCP)"
-      OpenEndToEndCustomPipe,
-      NewMtProtoPipe,
-      CustomUdpRelay
+      OpenEndToEndCustomPipe = 1,
+      NewMtProtoPipe = 2,
+      CustomUdpRelay = 3,
+      // Optional, append-only negotiation command. Legacy servers ignore unknown commands.
+      ProtocolHello = 4
    }
 }

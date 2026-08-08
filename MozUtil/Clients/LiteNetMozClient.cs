@@ -30,6 +30,15 @@ namespace MozUtil.Clients
         private volatile Dictionary<ushort, MozLiteNetReliableConnection> Connections =
            new Dictionary<ushort, MozLiteNetReliableConnection>();
 
+        private readonly object _orphanTrafficLock = new object();
+        private readonly Dictionary<ushort, long> _lastOrphanCloseRequest = new Dictionary<ushort, long>();
+        private DateTime _orphanTrafficWindowStart = DateTime.UtcNow;
+        private long _orphanTrafficBytes;
+        private int _orphanFloodStopped;
+        private int _protocolIncompatible;
+        private const long OrphanTrafficLimitBytes = 1024 * 1024;
+        private static readonly TimeSpan OrphanTrafficWindow = TimeSpan.FromSeconds(5);
+
         private volatile Dictionary<byte, SubTunInfo> udpRelaysDictionary = new Dictionary<byte, SubTunInfo>();//key is ID.
         private HttpToSocks5Proxy HttpProxy;
         private NetManager LiteNetManager;
@@ -75,6 +84,9 @@ namespace MozUtil.Clients
         public NetStatistics NetStats => LiteNetManager.Statistics;
         public int ConnectiounsCount => Connections.Count;
         public int MaxOutboundPackets { get; set; }
+        public ushort ServerProtocolVersion { get; private set; } = MozProtocol.LegacyVersion;
+        public ushort ServerMinimumProtocolVersion { get; private set; } = MozProtocol.LegacyVersion;
+        public MozProtocolCapabilities ServerCapabilities { get; private set; } = MozProtocolCapabilities.None;
         public event EventHandler<int>? LatencyUpdate;
         public event EventHandler<StatusResult>? StatusUpdate;
         public event EventHandler<Tuple<int, int, int>>? PortsChanged;
@@ -199,6 +211,11 @@ namespace MozUtil.Clients
            DeliveryMethod deliveryMethod)
         {
             byte[] RecData = reader.RawData[reader.UserDataOffset..(reader.UserDataSize + reader.UserDataOffset)];
+            if (RecData.Length < 2)
+            {
+                Logger.Log($"Discarded malformed LiteNet packet ({RecData.Length} byte(s)).");
+                return;
+            }
             if (deliveryMethod == DeliveryMethod.Unreliable)
             {
                 //First byte is relay channel id
@@ -209,9 +226,19 @@ namespace MozUtil.Clients
             ushort ConID = BitConverter.ToUInt16(RecData, 0);
             if (ConID == 0)
             {
+                if (RecData.Length < 4)
+                {
+                    Logger.Log($"Discarded malformed LiteNet control packet ({RecData.Length} byte(s)).");
+                    return;
+                }
                 ConID = BitConverter.ToUInt16(RecData, 2);
                 if (ConID == 0)//Server commands over UDP
                 {
+                    if (RecData.Length < 6)
+                    {
+                        Logger.Log($"Discarded malformed LiteNet server command ({RecData.Length} byte(s)).");
+                        return;
+                    }
                     ushort ServerCommandValue = BitConverter.ToUInt16(RecData, 4);
                     ServerCommands ServerCommand = (ServerCommands)((int)ServerCommandValue);
                     switch (ServerCommand)
@@ -249,6 +276,31 @@ namespace MozUtil.Clients
                             }
 
                             break;
+                        case ServerCommands.ProtocolHello:
+                            if (MozProtocol.TryReadHello(RecData, 6, out var version, out var minimumVersion,
+                                out var capabilities))
+                            {
+                                if (!MozProtocol.IsCompatible(version, minimumVersion))
+                                {
+                                    Logger.Log($"Server protocol range v{minimumVersion}-v{version} is incompatible " +
+                                               $"with client range v{MozProtocol.MinimumVersion}-v{MozProtocol.CurrentVersion}.");
+                                    Interlocked.Exchange(ref _protocolIncompatible, 1);
+                                    StatusUpdate?.Invoke(this, StatusResult.UDPError);
+                                    peer.Disconnect();
+                                    break;
+                                }
+
+                                ServerProtocolVersion = version;
+                                ServerMinimumProtocolVersion = minimumVersion;
+                                ServerCapabilities = capabilities;
+                                Logger.Log($"Negotiated Moz protocol v{version} (minimum v{minimumVersion}); " +
+                                           $"server capabilities: {capabilities}.");
+                            }
+                            else
+                            {
+                                Logger.Log("Ignored malformed Moz protocol hello from server.");
+                            }
+                            break;
                         default:
                             break;
                     }
@@ -260,8 +312,75 @@ namespace MozUtil.Clients
                 }
                 return;
             }
+            if (!Connections.ContainsKey(ConID))
+            {
+                HandleOrphanedPayload(peer, ConID, channelNumber, RecData.Length - 2);
+                return;
+            }
             HandleIncomingUdpDataAsync(ConID, channelNumber, RecData[2..], peer).Wait();
             //throw new NotImplementedException();
+        }
+
+        private void HandleOrphanedPayload(NetPeer peer, ushort connectionId, byte channelNumber, int payloadBytes)
+        {
+            var now = DateTime.UtcNow;
+            var nowTicks = now.Ticks;
+            var shouldSendClose = false;
+            var shouldStopTunnel = false;
+            long windowBytes;
+
+            lock (_orphanTrafficLock)
+            {
+                if (now - _orphanTrafficWindowStart >= OrphanTrafficWindow)
+                {
+                    _orphanTrafficWindowStart = now;
+                    _orphanTrafficBytes = 0;
+                }
+
+                _orphanTrafficBytes += Math.Max(0, payloadBytes);
+                windowBytes = _orphanTrafficBytes;
+
+                if (!_lastOrphanCloseRequest.TryGetValue(connectionId, out var lastRequest) ||
+                    nowTicks - lastRequest >= TimeSpan.TicksPerSecond)
+                {
+                    _lastOrphanCloseRequest[connectionId] = nowTicks;
+                    shouldSendClose = true;
+                }
+
+                shouldStopTunnel = Connections.Count == 0 &&
+                    windowBytes >= OrphanTrafficLimitBytes &&
+                    Interlocked.CompareExchange(ref _orphanFloodStopped, 1, 0) == 0;
+            }
+
+            if (shouldSendClose)
+            {
+                var closeRequest = new byte[4];
+                BitConverter.GetBytes(connectionId).CopyTo(closeRequest, 2);
+                peer.Send(closeRequest, channelNumber, DeliveryMethod.ReliableUnordered);
+            }
+
+            if (!shouldStopTunnel)
+                return;
+
+            Logger.Log($"Stopped tunnel after receiving {windowBytes} bytes for closed connection(s) " +
+                       $"within {OrphanTrafficWindow.TotalSeconds:0} seconds while no local proxy connections were active. " +
+                       "The server did not stop the closed stream.");
+            StatusUpdate?.Invoke(this, StatusResult.UDPError);
+            _ = Task.Run(() =>
+            {
+                try
+                {
+                    LiteNetManager.Stop();
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogException(ex);
+                }
+                finally
+                {
+                    StatusUpdate?.Invoke(this, StatusResult.UDPDisconnected);
+                }
+            });
         }
         public async void AttemptReconnect(udpConnectionInfo ReconInfo, STUNNATType NatType)
         {
@@ -271,6 +390,8 @@ namespace MozUtil.Clients
         public void OnPeerConnected(NetPeer peer)
         {
             Logger.Log("Peer con");
+            // Safe for legacy servers: command switches use a default branch for unknown values.
+            peer.Send(ClientCommandUtils.BuildProtocolHelloCommand(), DeliveryMethod.ReliableUnordered);
             //if (!NMHolder._Peers.Contains(peer))
             //{
             //NMHolder._Peers.Add(peer);
@@ -283,6 +404,11 @@ namespace MozUtil.Clients
         public void OnPeerDisconnected(NetPeer peer, DisconnectInfo disconnectInfo)
         {
             if (ReferenceEquals(LiteNetManager, null)) return;
+            if (Interlocked.CompareExchange(ref _protocolIncompatible, 0, 0) != 0)
+            {
+                StatusUpdate?.Invoke(this, StatusResult.UDPDisconnected);
+                return;
+            }
             if (LiteNetManager.IsRunning)
             {
                 if (ReconRetries < MaxConnectionRetries)
@@ -861,10 +987,24 @@ namespace MozUtil.Clients
             if (LiteNetManager.IsRunning)
                 try
                 {
+                    var rawData = e.RawData;
+                    if (rawData == null)
+                        return;
+
+                    // A stream-close frame is control traffic. Sending it through the ordered
+                    // payload lane can leave cancellation stuck behind queued application data.
+                    if (e.Length == 4 && BitConverter.ToUInt16(rawData, e.StartIndex) == 0 &&
+                        BitConverter.ToUInt16(rawData, e.StartIndex + 2) != 0)
+                    {
+                        LiteNetManager.GetPeerById(e.PeerID).Send(rawData, e.StartIndex, e.Length,
+                            e.ChannelID, DeliveryMethod.ReliableUnordered);
+                        return;
+                    }
+
                     while (LiteNetManager.GetPeerById(e.PeerID).GetPacketsCountInReliableQueue(e.ChannelID, true) >
                            MaxOutboundPackets) Thread.Sleep(1);
                     //Logger.Log($"Client is sending ({e.Length - 2}) {e.Length} bytes to server Con ID {((MozLiteNetReliableConnection)sender).ConnectionID} channel {e.ChannelID}");
-                    LiteNetManager.GetPeerById(e.PeerID).Send(e.RawData, e.StartIndex, e.Length, e.ChannelID,
+                    LiteNetManager.GetPeerById(e.PeerID).Send(rawData, e.StartIndex, e.Length, e.ChannelID,
                        DeliveryMethod.ReliableOrdered);
                     //ResetEvent.Set();
                 }
@@ -896,19 +1036,7 @@ namespace MozUtil.Clients
             }
             catch (KeyNotFoundException)
             {
-                //Logger.Log("a Connection is missing: " + ConnectionID);
-                try
-                {
-                    byte[] SendData = new byte[4];
-                    BitConverter.GetBytes(ConnectionID).CopyTo(SendData, 2);
-                    peer.Send(SendData, ChannelID, DeliveryMethod.ReliableUnordered);
-                    //udpCli.Send(SendData, 4, ServerEP);
-                }
-                catch (Exception ex)
-                {
-                    Logger.Log(ex.Message);
-                }
-                //At the server side, if the connection id was 0, remove the connection with the id of the following bytes to shorts
+                HandleOrphanedPayload(peer, ConnectionID, ChannelID, Data.Count);
             }
             catch (ObjectDisposedException)
             {
