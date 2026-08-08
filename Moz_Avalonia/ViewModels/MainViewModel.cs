@@ -20,6 +20,7 @@ public partial class MainViewModel : ViewModelBase, IAsyncDisposable
     private readonly SettingsStore _settingsStore = new();
     private readonly StunProbeService _stunProbe = new();
     private readonly DesktopIntegrationService _desktop = new();
+    private readonly DesktopNotificationService _notifications = new();
     private AppSettings _settings = new();
     private bool _initialized;
     private bool _lastDraftSaveSucceeded;
@@ -49,6 +50,8 @@ public partial class MainViewModel : ViewModelBase, IAsyncDisposable
     public ObservableCollection<BrowserInfo> Browsers { get; } = [];
 
     public string SettingsPath => _settingsStore.Path;
+    public bool IsWindows => OperatingSystem.IsWindows();
+    public bool IsUiVisible { get; private set; } = true;
     public bool HasConnections => Connections.Count > 0;
     public bool IsEditing => EditingConnection is not null;
     public string EditorHeader => IsEditing ? $"Edit {EditingConnection!.Name}" : "New connection";
@@ -69,7 +72,7 @@ public partial class MainViewModel : ViewModelBase, IAsyncDisposable
     [ObservableProperty] private bool _forceSymmetric;
     [ObservableProperty] private bool _aggressivePortScan;
     [ObservableProperty] private bool _skipStun;
-    [ObservableProperty] private bool _autoConnectSavedProfiles;
+    [ObservableProperty] private bool _autoConnectProfile;
     [ObservableProperty] private string? _selectedServerOption;
     [ObservableProperty] private string? _selectedStunOption;
     [ObservableProperty] private string? _selectedHttpProxyOption;
@@ -82,8 +85,21 @@ public partial class MainViewModel : ViewModelBase, IAsyncDisposable
     [ObservableProperty] private int _stunTestTimeoutMs = 1800;
     [ObservableProperty] private string _stunTestSummary = "Ready to test all configured STUN servers.";
 
-    partial void OnSelectedServerOptionChanged(string? value) { if (!string.IsNullOrWhiteSpace(value)) ServerAddress = value; }
-    partial void OnSelectedStunOptionChanged(string? value) { if (!string.IsNullOrWhiteSpace(value)) StunServer = value; }
+    partial void OnSelectedServerOptionChanged(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return;
+        ServerAddress = value;
+        if (_initialized && EditingConnection is null)
+            _settings.ServerAddress = NormalizeServer(value);
+    }
+
+    partial void OnSelectedStunOptionChanged(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return;
+        StunServer = value;
+        if (_initialized && EditingConnection is null)
+            _settings.StunServer = value.Trim();
+    }
     partial void OnSelectedHttpProxyOptionChanged(string? value) { if (!string.IsNullOrWhiteSpace(value)) HttpProxy = value; }
     partial void OnEditingConnectionChanged(ConnectionViewModel? value)
     {
@@ -111,19 +127,29 @@ public partial class MainViewModel : ViewModelBase, IAsyncDisposable
         ForceSymmetric = _settings.ForceSymmetric;
         AggressivePortScan = _settings.AggressivePortScan;
         SkipStun = _settings.SkipStun;
-        AutoConnectSavedProfiles = _settings.AutoConnectSavedProfiles;
+        IsEditorOpen = _settings.IsEditorOpen;
         StunTestBatchSize = Math.Clamp(_settings.StunTestBatchSize, 1, 64);
         StunTestTimeoutMs = Math.Clamp(_settings.StunTestTimeoutMs, 250, 30000);
         MergeOptions(ServerOptions, _settings.CustomServers);
         MergeOptions(StunOptions, _settings.CustomStunServers);
         MergeOptions(HttpProxyOptions, _settings.CustomHttpProxies);
+        SynchronizeServerSelections();
         SelectedBrowser = Browsers.FirstOrDefault(x => x.Executable == _settings.PreferredBrowser) ?? Browsers.FirstOrDefault();
+
+        var migratedGlobalStartup = _settings.AutoConnectSavedProfiles;
+        if (migratedGlobalStartup)
+        {
+            foreach (var profile in _settings.SavedProfiles) profile.AutoConnectAtLaunch = true;
+            _settings.AutoConnectSavedProfiles = false;
+        }
 
         foreach (var profile in _settings.SavedProfiles)
             AddProfile(profile);
         _initialized = true;
-        if (AutoConnectSavedProfiles)
-            foreach (var connection in Connections) await connection.ConnectCommand.ExecuteAsync(null);
+        if (migratedGlobalStartup) await SaveAsync();
+        var startupProfiles = Connections.Where(connection => connection.Profile.AutoConnectAtLaunch).ToArray();
+        if (startupProfiles.Length > 0)
+            await Task.WhenAll(startupProfiles.Select(connection => connection.ConnectCommand.ExecuteAsync(null)));
         StatusMessage = Connections.Count == 0 ? "Create a connection profile to begin." : $"Restored {Connections.Count} connection profile(s).";
     }
 
@@ -144,13 +170,22 @@ public partial class MainViewModel : ViewModelBase, IAsyncDisposable
         }
         else
         {
-            SelectedConnection = await ReplaceProfileAsync(EditingConnection, profile);
+            if (HasSameConnectionSettings(EditingConnection.Profile, profile))
+            {
+                EditingConnection.UpdateProfileMetadata(profile.Name, profile.AutoConnectAtLaunch);
+                SelectedConnection = EditingConnection;
+                StatusMessage = $"Saved profile options for {profile.Name} without interrupting its connection.";
+            }
+            else
+            {
+                SelectedConnection = await ReplaceProfileAsync(EditingConnection, profile);
+                StatusMessage = $"Saved connection changes to {profile.Name}.";
+            }
             EditingConnection = null;
-            StatusMessage = $"Saved changes to {profile.Name}.";
         }
+        IsEditorOpen = false;
         await SaveAsync();
         _lastDraftSaveSucceeded = true;
-        IsEditorOpen = false;
     }
 
     [RelayCommand]
@@ -193,6 +228,7 @@ public partial class MainViewModel : ViewModelBase, IAsyncDisposable
         ProfileName = profile.Name;
         ServerAddress = profile.ServerAddress;
         StunServer = profile.StunServer;
+        SynchronizeServerSelections();
         HttpProxy = profile.HttpProxy;
         SelectedTransport = profile.Transport;
         MaxChannels = profile.MaxChannels;
@@ -200,16 +236,20 @@ public partial class MainViewModel : ViewModelBase, IAsyncDisposable
         ForceSymmetric = profile.ForceSymmetric;
         AggressivePortScan = profile.AggressivePortScan;
         SkipStun = profile.SkipStun;
+        AutoConnectProfile = profile.AutoConnectAtLaunch;
         StatusMessage = connection.IsConnected
-            ? "Editing an active profile. Saving will disconnect it; use Save & connect to restart with the new settings."
+            ? "Name and startup changes are applied without interruption. Connection-setting changes restart the profile; use Save & connect to reconnect it."
             : $"Editing {connection.Name}.";
+        await PersistEditorStateAsync();
     }
 
     [RelayCommand]
-    private void CancelEdit()
+    private async Task CancelEditAsync()
     {
         EditingConnection = null;
         RestoreNewConnectionDraft();
+        IsEditorOpen = false;
+        await PersistEditorStateAsync();
         StatusMessage = "Edit cancelled.";
     }
 
@@ -226,17 +266,24 @@ public partial class MainViewModel : ViewModelBase, IAsyncDisposable
             EditingConnection = null;
             RestoreNewConnectionDraft();
             IsEditorOpen = false;
+            await PersistEditorStateAsync();
             return;
         }
 
         EditingConnection = null;
         RestoreNewConnectionDraft();
         IsEditorOpen = true;
+        await PersistEditorStateAsync();
     }
 
     [RelayCommand]
     private async Task UseAsSystemProxyAsync(ConnectionViewModel? connection)
     {
+        if (!IsWindows)
+        {
+            StatusMessage = "Automatic system proxy configuration is available only on Windows.";
+            return;
+        }
         if (connection is null || !connection.IsConnected)
         {
             StatusMessage = "Connect that profile before using its system proxy.";
@@ -411,6 +458,8 @@ public partial class MainViewModel : ViewModelBase, IAsyncDisposable
 
         StunServer = winner.Server;
         SelectedStunOption = winner.Server;
+        _settings.StunServer = winner.Server;
+        if (_initialized) await _settingsStore.SaveAsync(_settings);
         var prefix = partialRun ? "Testing stopped · fastest completed result" : "Fastest result";
         StunTestSummary = $"{prefix}: {winner.Server} ({winner.LatencyMs} ms) · " +
                           $"trusted NAT: {trustedGroup.NatType} ({trustedGroup.Count} server(s))";
@@ -472,7 +521,8 @@ public partial class MainViewModel : ViewModelBase, IAsyncDisposable
         _settings.ForceSymmetric = ForceSymmetric;
         _settings.AggressivePortScan = AggressivePortScan;
         _settings.SkipStun = SkipStun;
-        _settings.AutoConnectSavedProfiles = AutoConnectSavedProfiles;
+        _settings.AutoConnectSavedProfiles = false;
+        _settings.IsEditorOpen = IsEditorOpen;
         _settings.StunTestBatchSize = Math.Clamp(StunTestBatchSize, 1, 64);
         _settings.StunTestTimeoutMs = Math.Clamp(StunTestTimeoutMs, 250, 30000);
         _settings.PreferredBrowser = SelectedBrowser?.Executable ?? string.Empty;
@@ -483,9 +533,17 @@ public partial class MainViewModel : ViewModelBase, IAsyncDisposable
         await _settingsStore.SaveAsync(_settings);
     }
 
+    private async Task PersistEditorStateAsync()
+    {
+        if (!_initialized) return;
+        _settings.IsEditorOpen = IsEditorOpen;
+        await _settingsStore.SaveAsync(_settings);
+    }
+
     private ConnectionViewModel AddProfile(ConnectionProfile profile)
     {
-        var connection = new ConnectionViewModel(profile, Connections.Count, ResolveAutoStunAsync, ClearSystemProxyForConnectionAsync);
+        var connection = new ConnectionViewModel(profile, Connections.Count, ResolveAutoStunAsync,
+            ClearSystemProxyForConnectionAsync, () => IsUiVisible, NotifyConnectionStatus);
         Connections.Add(connection);
         SelectedConnection ??= connection;
         OnPropertyChanged(nameof(HasConnections));
@@ -497,7 +555,8 @@ public partial class MainViewModel : ViewModelBase, IAsyncDisposable
         var index = Connections.IndexOf(oldConnection);
         if (index < 0) return AddProfile(profile);
         await oldConnection.DisposeAsync();
-        var replacement = new ConnectionViewModel(profile, index, ResolveAutoStunAsync, ClearSystemProxyForConnectionAsync);
+        var replacement = new ConnectionViewModel(profile, index, ResolveAutoStunAsync,
+            ClearSystemProxyForConnectionAsync, () => IsUiVisible, NotifyConnectionStatus);
         Connections[index] = replacement;
         return replacement;
     }
@@ -509,20 +568,49 @@ public partial class MainViewModel : ViewModelBase, IAsyncDisposable
         foreach (var item in Connections) item.IsSystemProxy = false;
     }
 
+    public void SetUiVisible(bool visible)
+    {
+        if (IsUiVisible == visible) return;
+        IsUiVisible = visible;
+        if (visible)
+            foreach (var connection in Connections) connection.ResumeUiUpdates();
+    }
+
+    public void NotifyBackgroundMode() =>
+        _notifications.Show("Moz VPN is still running", "Active connections will continue in the background.");
+
+    private void NotifyConnectionStatus(string title, string message)
+    {
+        if (!IsUiVisible) _notifications.Show(title, message);
+    }
+
     private ConnectionProfile CreateDraftProfile() => new()
     {
         BrowserProfileId = EditingConnection?.Profile.BrowserProfileId ?? Guid.NewGuid().ToString("N"),
         Name = string.IsNullOrWhiteSpace(ProfileName) ? $"Connection {Connections.Count + 1}" : ProfileName.Trim(),
         ServerAddress = NormalizeServer(ServerAddress), StunServer = StunServer.Trim(), HttpProxy = HttpProxy.Trim(),
         Transport = SelectedTransport, MaxChannels = Math.Clamp(MaxChannels, 1, 64), UseHttpProxy = UseHttpProxy,
-        ForceSymmetric = ForceSymmetric, AggressivePortScan = AggressivePortScan, SkipStun = SkipStun
+        ForceSymmetric = ForceSymmetric, AggressivePortScan = AggressivePortScan, SkipStun = SkipStun,
+        AutoConnectAtLaunch = AutoConnectProfile
     };
+
+    private static bool HasSameConnectionSettings(ConnectionProfile current, ConnectionProfile draft) =>
+        current.ServerAddress.Equals(draft.ServerAddress, StringComparison.OrdinalIgnoreCase) &&
+        current.StunServer.Equals(draft.StunServer, StringComparison.OrdinalIgnoreCase) &&
+        current.HttpProxy.Equals(draft.HttpProxy, StringComparison.Ordinal) &&
+        current.Transport.Equals(draft.Transport, StringComparison.Ordinal) &&
+        current.MaxChannels == draft.MaxChannels &&
+        current.UseHttpProxy == draft.UseHttpProxy &&
+        current.ForceSymmetric == draft.ForceSymmetric &&
+        current.AggressivePortScan == draft.AggressivePortScan &&
+        current.SkipStun == draft.SkipStun;
 
     private void RestoreNewConnectionDraft()
     {
         ProfileName = "Connection";
         ServerAddress = _settings.ServerAddress;
         StunServer = _settings.StunServer;
+        SynchronizeServerSelections();
         HttpProxy = _settings.HttpProxy;
         SelectedTransport = TransportOptions.Contains(_settings.Transport) ? _settings.Transport : "Reliable";
         MaxChannels = Math.Clamp(_settings.MaxChannels, 1, 64);
@@ -530,6 +618,7 @@ public partial class MainViewModel : ViewModelBase, IAsyncDisposable
         ForceSymmetric = _settings.ForceSymmetric;
         AggressivePortScan = _settings.AggressivePortScan;
         SkipStun = _settings.SkipStun;
+        AutoConnectProfile = false;
     }
 
     private bool ValidateDraft(out string error)
@@ -545,6 +634,14 @@ public partial class MainViewModel : ViewModelBase, IAsyncDisposable
     }
 
     private static string NormalizeServer(string value) => value.Trim().TrimEnd('/') + "/";
+    private void SynchronizeServerSelections()
+    {
+        SelectedServerOption = ServerOptions.FirstOrDefault(value =>
+            NormalizeServer(value).Equals(NormalizeServer(ServerAddress), StringComparison.OrdinalIgnoreCase));
+        SelectedStunOption = StunOptions.FirstOrDefault(value =>
+            value.Equals(StunServer, StringComparison.OrdinalIgnoreCase));
+    }
+
     private static bool LooksLikeEndpoint(string value) => value.Trim().LastIndexOf(':') > 0 && ushort.TryParse(value[(value.LastIndexOf(':') + 1)..], out var port) && port > 0;
     private static void AddUnique(ObservableCollection<string> target, string value) { if (!target.Contains(value, StringComparer.OrdinalIgnoreCase)) target.Add(value); }
     private static void MergeOptions(ObservableCollection<string> target, IEnumerable<string> values) { foreach (var value in values) AddUnique(target, value); }

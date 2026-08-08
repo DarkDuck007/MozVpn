@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Collections.Concurrent;
 using System.Linq;
 using System.Reflection;
 using System.Threading;
@@ -21,6 +22,9 @@ public partial class ConnectionViewModel : ViewModelBase, IAsyncDisposable
 {
     private readonly Func<Task<string>> _resolveStun;
     private readonly Func<ConnectionViewModel, Task> _clearSystemProxy;
+    private readonly Func<bool> _isUiVisible;
+    private readonly Action<string, string> _notify;
+    private readonly ConcurrentQueue<string> _deferredLogs = new();
     private readonly CancellationTokenSource _lifetime = new();
     private readonly Task _telemetryTask;
     private MozManager? _manager;
@@ -31,13 +35,16 @@ public partial class ConnectionViewModel : ViewModelBase, IAsyncDisposable
     private bool _disconnecting;
 
     public ConnectionViewModel(ConnectionProfile profile, int ordinal, Func<Task<string>> resolveStun,
-        Func<ConnectionViewModel, Task> clearSystemProxy)
+        Func<ConnectionViewModel, Task> clearSystemProxy, Func<bool> isUiVisible,
+        Action<string, string> notify)
     {
         Profile = profile;
         if (!Guid.TryParseExact(Profile.BrowserProfileId, "N", out _))
             Profile.BrowserProfileId = Guid.NewGuid().ToString("N");
         _resolveStun = resolveStun;
         _clearSystemProxy = clearSystemProxy;
+        _isUiVisible = isUiVisible;
+        _notify = notify;
         Name = string.IsNullOrWhiteSpace(profile.Name) ? $"Connection {ordinal + 1}" : profile.Name;
         SocksPort = PortAllocator.FindAvailable(6375 + ordinal * 20);
         HttpPort = PortAllocator.FindAvailable(6385 + ordinal * 20);
@@ -249,6 +256,7 @@ public partial class ConnectionViewModel : ViewModelBase, IAsyncDisposable
     private void OnStatus(object? sender, StatusResult status) => Dispatcher.UIThread.Post(() =>
     {
         AppendLog(status.ToString());
+        var wasConnected = IsConnected;
         switch (status)
         {
             case StatusResult.UDPConnected:
@@ -256,18 +264,26 @@ public partial class ConnectionViewModel : ViewModelBase, IAsyncDisposable
                 UdpStatus = "Connected";
                 StatusBrush = Brushes.LimeGreen;
                 _connectedAt ??= DateTimeOffset.UtcNow;
+                if (!wasConnected) _notify($"{Name} connected", "The UDP tunnel is ready.");
                 break;
             case StatusResult.UDPConnecting:
             case StatusResult.UDPReconnecting:
                 UdpStatus = status == StatusResult.UDPReconnecting ? "Reconnecting…" : "Connecting…";
                 StatusBrush = Brushes.Orange;
+                if (status == StatusResult.UDPReconnecting)
+                    _notify($"{Name} interrupted", "The tunnel is trying to reconnect.");
                 break;
             case StatusResult.SendingStun: UdpStatus = "Testing STUN…"; StatusBrush = Brushes.Orange; break;
             case StatusResult.StunSuccess: UdpStatus = "STUN succeeded"; break;
-            case StatusResult.StunFailed: UdpStatus = "STUN failed"; StatusBrush = Brushes.IndianRed; break;
-            case StatusResult.UDPError: UdpStatus = "Connection failed"; StatusBrush = Brushes.IndianRed; break;
+            case StatusResult.StunFailed:
+                UdpStatus = "STUN failed"; StatusBrush = Brushes.IndianRed;
+                _notify($"{Name}: STUN failed", "The public endpoint could not be discovered."); break;
+            case StatusResult.UDPError:
+                UdpStatus = "Connection failed"; StatusBrush = Brushes.IndianRed;
+                _notify($"{Name} failed", "The UDP tunnel encountered an error."); break;
             case StatusResult.UDPDisconnected:
                 UdpStatus = "Disconnected"; IsConnected = false; StatusBrush = Brushes.IndianRed;
+                if (wasConnected) _notify($"{Name} disconnected", "The UDP tunnel is no longer connected.");
                 _ = DisconnectCoreAsync(); break;
             case StatusResult.HTTPConnected: HttpStatus = "Connected"; break;
             case StatusResult.HTTPConnecting: HttpStatus = "Connecting…"; break;
@@ -278,8 +294,11 @@ public partial class ConnectionViewModel : ViewModelBase, IAsyncDisposable
         }
     });
 
-    private void OnLatency(object? sender, int latency) => Dispatcher.UIThread.Post(() =>
+    private void OnLatency(object? sender, int latency)
     {
+        if (!_isUiVisible()) return;
+        Dispatcher.UIThread.Post(() =>
+        {
         var roundTrip = latency * 2;
         Latency = $"{roundTrip} ms";
         LatencyBrush = roundTrip > 250 ? Brushes.Red
@@ -288,7 +307,8 @@ public partial class ConnectionViewModel : ViewModelBase, IAsyncDisposable
             : Brushes.Lime;
         if (_manager?.LiteNetStats is not null)
             PacketLoss = $"{_manager.LiteNetStats.PacketLossPercent:0.##}%";
-    });
+        });
+    }
 
     private void OnLog(object? sender, string message) => Dispatcher.UIThread.Post(() => AppendLog(message));
     private void OnSubTunCreated(object? sender, SubTunInfo relay) => Dispatcher.UIThread.Post(() =>
@@ -296,8 +316,11 @@ public partial class ConnectionViewModel : ViewModelBase, IAsyncDisposable
         if (!Relays.Contains(relay)) Relays.Add(relay);
     });
 
-    private void OnServerStats(object? sender, ServerStatusInformation data) => Dispatcher.UIThread.Post(() =>
+    private void OnServerStats(object? sender, ServerStatusInformation data)
     {
+        if (!_isUiVisible()) return;
+        Dispatcher.UIThread.Post(() =>
+        {
         ServerStatsStatus = data.Uptime == -1 ? "Rejected" : "Enabled";
         foreach (var property in typeof(ServerStatusInformation).GetProperties(BindingFlags.Instance | BindingFlags.Public))
         {
@@ -309,7 +332,8 @@ public partial class ConnectionViewModel : ViewModelBase, IAsyncDisposable
             if (item is null) ServerStats.Add(new StatItem(property.Name, value, raw));
             else item.Update(value, raw);
         }
-    });
+        });
+    }
 
     private async Task RunTelemetryLoopAsync(CancellationToken token)
     {
@@ -325,6 +349,7 @@ public partial class ConnectionViewModel : ViewModelBase, IAsyncDisposable
                 var deltaOut = bytesOut >= _lastBytesOut ? bytesOut - _lastBytesOut : 0;
                 _lastBytesIn = bytesIn;
                 _lastBytesOut = bytesOut;
+                if (!_isUiVisible()) continue;
                 await Dispatcher.UIThread.InvokeAsync(() =>
                 {
                     InboundRate = MozStatic.HumanReadable(deltaIn) + "/s";
@@ -345,8 +370,30 @@ public partial class ConnectionViewModel : ViewModelBase, IAsyncDisposable
 
     private void AppendLog(string message)
     {
+        if (!_isUiVisible())
+        {
+            _deferredLogs.Enqueue(message);
+            while (_deferredLogs.Count > 4096) _deferredLogs.TryDequeue(out _);
+            return;
+        }
         Log += Environment.NewLine + message;
         if (Log.Length > 256 * 1024) Log = Log[^192_000..];
+    }
+
+    public void UpdateProfileMetadata(string name, bool autoConnectAtLaunch)
+    {
+        Profile.Name = name;
+        Profile.AutoConnectAtLaunch = autoConnectAtLaunch;
+        Name = name;
+    }
+
+    public void ResumeUiUpdates()
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            while (_deferredLogs.TryDequeue(out var message)) AppendLog(message);
+            GraphVersion++;
+        });
     }
 
     private static void AddSample(List<double> samples, double value)

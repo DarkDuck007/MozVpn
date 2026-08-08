@@ -11,11 +11,22 @@ namespace Moz_Avalonia.Views;
 public partial class MainWindow : Window
 {
     private bool _shutdownReady;
+    private bool _trayHintShown;
 
     public MainWindow()
     {
         InitializeComponent();
         Closing += OnClosing;
+        PropertyChanged += (_, change) =>
+        {
+            if (change.Property != WindowStateProperty || DataContext is not MainViewModel viewModel) return;
+
+            // Do not call Hide() while KDE/Windows is transitioning the native surface to a
+            // minimized state. Mixing both transitions can restore an empty compositor surface.
+            // A minimized window remains owned by the window manager; only Close hides to tray.
+            if (WindowState == WindowState.Minimized) viewModel.SetUiVisible(false);
+            else if (IsVisible) viewModel.SetUiVisible(true);
+        };
         DataContextChanged += (_, _) =>
         {
             if (DataContext is MainViewModel viewModel) viewModel.ConfirmAsync = ShowConfirmationAsync;
@@ -66,15 +77,44 @@ public partial class MainWindow : Window
         return await dialog.ShowDialog<bool>(this);
     }
 
-    private async void OnClosing(object? sender, WindowClosingEventArgs e)
+    public void ShowFromTray()
     {
-        if (_shutdownReady || DataContext is not MainViewModel viewModel) return;
-        e.Cancel = true;
-        try { await viewModel.DisposeAsync(); }
-        finally
+        if (!IsVisible)
         {
-            _shutdownReady = true;
-            Close();
+            Show();
+            WindowState = WindowState.Normal;
         }
+        else if (WindowState == WindowState.Minimized)
+        {
+            WindowState = WindowState.Normal;
+        }
+
+        Activate();
+        if (DataContext is MainViewModel viewModel) viewModel.SetUiVisible(true);
+    }
+
+    private void HideToTray()
+    {
+        Hide();
+        if (DataContext is not MainViewModel viewModel) return;
+        viewModel.SetUiVisible(false);
+        if (_trayHintShown) return;
+        _trayHintShown = true;
+        viewModel.NotifyBackgroundMode();
+    }
+
+    public async Task ExitAsync()
+    {
+        if (_shutdownReady) return;
+        if (DataContext is MainViewModel viewModel) await viewModel.DisposeAsync();
+        _shutdownReady = true;
+        Close();
+    }
+
+    private void OnClosing(object? sender, WindowClosingEventArgs e)
+    {
+        if (_shutdownReady) return;
+        e.Cancel = true;
+        HideToTray();
     }
 }

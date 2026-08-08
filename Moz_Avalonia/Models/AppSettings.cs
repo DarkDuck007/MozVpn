@@ -14,7 +14,9 @@ public sealed class AppSettings
     public bool ForceSymmetric { get; set; }
     public bool AggressivePortScan { get; set; }
     public bool SkipStun { get; set; }
+    // Legacy global setting retained only for one-time migration to per-profile startup.
     public bool AutoConnectSavedProfiles { get; set; }
+    public bool IsEditorOpen { get; set; } = true;
     public int StunTestBatchSize { get; set; } = 12;
     public int StunTestTimeoutMs { get; set; } = 1800;
     public string PreferredBrowser { get; set; } = string.Empty;
@@ -37,4 +39,5 @@ public sealed class ConnectionProfile
     public bool ForceSymmetric { get; set; }
     public bool AggressivePortScan { get; set; }
     public bool SkipStun { get; set; }
+    public bool AutoConnectAtLaunch { get; set; }
 }

@@ -22,9 +22,21 @@ Use **Edit** on a connection card or in the detail toolbar to load that profile 
 
 On Linux, desktop-wide proxy switching currently uses GNOME `gsettings`. Other desktop environments can still use the displayed SOCKS5/HTTP endpoints or the proxied-browser launcher. BALETUN remains subject to the hard-coded Windows executable in `MozUtil`; the UI exposes it for WPF parity, but it is not portable until that backend is changed.
 
-Build with:
+## Build and publish
+
+Run commands from the repository root. Build and run locally with:
 
 ```sh
-dotnet build Moz_Avalonia/Moz_Avalonia.csproj -m:1
-dotnet run --project Moz_Avalonia/Moz_Avalonia.csproj
+dotnet build Moz_Avalonia/Moz_Avalonia.csproj -c Release
+dotnet run --project Moz_Avalonia/Moz_Avalonia.csproj -c Release
 ```
+
+Publish self-contained, single-file x64 artifacts with:
+
+```sh
+dotnet publish Moz_Avalonia/Moz_Avalonia.csproj -c Release -r linux-x64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=false -p:PublishAot=false -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=None -p:DebugSymbols=false -o artifacts/Moz_Avalonia/linux-x64
+
+dotnet publish Moz_Avalonia/Moz_Avalonia.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=false -p:PublishAot=false -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=None -p:DebugSymbols=false -o artifacts/Moz_Avalonia/win-x64
+```
+
+These produce `artifacts/Moz_Avalonia/linux-x64/Moz_Avalonia` and `artifacts/Moz_Avalonia/win-x64/Moz_Avalonia.exe`. Trimming and NativeAOT remain disabled because the current reflection-heavy code paths and dependencies are not safely annotated for them.

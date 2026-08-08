@@ -257,10 +257,11 @@ namespace MozUtil
                     else
                     {
                         //it is symmetric.
-                        var PRange = MozStun.GetPortRange(10, _StunServerAddress, 2000);
+                        var PRange = await MozStun.GetPortRangeCachedAsync(
+                           stunResult, 10, _StunServerAddress, 2000);
                         int multiplyer = 1;
                         if (symmetricConnectionClientCount > 1000) multiplyer = symmetricConnectionClientCount / 1000;
-                        byte[] PunchInfoBytes = MozStatic.SerializePunchInfo(PRange.StunResults[0],
+                        byte[] PunchInfoBytes = MozStatic.SerializePunchInfo(stunResult,
                            PRange.PortStart - 500 * multiplyer, PRange.PortsCount + 1000 * multiplyer, HolePunchingTimeout);
                         _ = PollHttpServer(PunchInfoBytes, uMode, false, CTS.Token);
                         return true;
