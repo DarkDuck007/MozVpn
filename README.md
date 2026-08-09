@@ -2,8 +2,7 @@
 
 A banana from hell, for connecting to the internet in Iran
 
-We really don't feel like explaining it, but the important thing is that it's safe and it works...
-
+Self-made UDP-Based protocol (using LiteNetLib) as a wrapper for TCP connections (can be anything, really, but I used socks5 to simplify things)
 ## Building Moz_Avalonia
 
 Install the .NET 10 SDK, then run these commands from the repository root.
