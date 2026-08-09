@@ -16,6 +16,12 @@ public sealed record BrowserInfo(string Name, string Executable)
 
 public sealed class DesktopIntegrationService
 {
+    public static void ClearWindowsSystemProxyOnExit()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        MozWin32.unsetProxy();
+    }
+
     public IReadOnlyList<BrowserInfo> FindBrowsers()
     {
         var candidates = OperatingSystem.IsWindows()

@@ -648,6 +648,16 @@ public partial class MainViewModel : ViewModelBase, IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        // Match the WPF client's shutdown behavior. Clear the Windows proxy before any
+        // fallible asynchronous cleanup so a stale in-memory connection flag or a save
+        // failure cannot leave the OS pointing at a proxy process that is about to exit.
+        if (OperatingSystem.IsWindows())
+        {
+            try { StatusMessage = await _desktop.ClearSystemProxyAsync(); }
+            catch (Exception ex) { StatusMessage = $"Could not clear system proxy: {ex.Message}"; }
+            foreach (var connection in Connections) connection.IsSystemProxy = false;
+        }
+
         _stunTestCts?.Cancel();
         if (_stunTestTask is not null)
             try { await _stunTestTask; } catch (OperationCanceledException) { }
