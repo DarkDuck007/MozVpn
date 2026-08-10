@@ -3,6 +3,15 @@
 A banana from hell, for connecting to the internet in Iran
 
 Self-made UDP-Based protocol (using LiteNetLib) as a wrapper for TCP connections (can be anything, really, but I used socks5 to simplify things)
+
+Main library, MozUtil, contains all the required classes for a MozConnection, usign an instance of MozManager.
+Avalonia version is the latest and greatest, but there are CLI, WPF and MAUI versions (half-baked, for android) exist as well.
+
+## Moz_Avalonia
+Moz with Avalonia UI supports multiple simultanious active connections, as well as openening browsers with those connections directly from Moz VPN's UI. using chromium command line arguments, it sets the proxy server for that browser instance. browser sessions for each profile keep their own site data, persistent across sessions.
+![MozVPN With Multiple Connections Active](assets/Moz_Avalonia_Connected.png)
+![MozVPN With Multiple Browsers Open](assets/Moz_Avalonia_Multiple_Browsers.png)
+
 ## Building Moz_Avalonia
 
 Install the .NET 10 SDK, then run these commands from the repository root.
