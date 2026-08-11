@@ -26,20 +26,32 @@ dotnet run --project Moz_Avalonia/Moz_Avalonia.csproj -c Release
 Publish a self-contained, single-file Linux x64 executable:
 
 ```sh
-dotnet publish Moz_Avalonia/Moz_Avalonia.csproj -c Release -r linux-x64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=false -p:PublishAot=false -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=None -p:DebugSymbols=false -o artifacts/Moz_Avalonia/linux-x64
+dotnet publish Moz_Avalonia/Moz_Avalonia.csproj -c Release -r linux-x64 -f net10.0 --self-contained true -p:PublishSingleFile=true -p:PublishReadyToRun=true -o artifacts/Moz_Avalonia/linux-x64
 ```
 
 Publish a self-contained, single-file Windows x64 executable:
 
 ```sh
-dotnet publish Moz_Avalonia/Moz_Avalonia.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=false -p:PublishAot=false -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=None -p:DebugSymbols=false -o artifacts/Moz_Avalonia/win-x64
+dotnet publish Moz_Avalonia/Moz_Avalonia.csproj -c Release -r win-x64 -f net10.0 --self-contained true -p:PublishSingleFile=true -p:PublishReadyToRun=true -o artifacts/Moz_Avalonia/win-x64
+```
+
+Publish Android App Bundle (AAB for Google Play Store) and APK (for sideloading):
+
+```sh
+# Build Google Play Store AAB
+ANDROID_HOME=~/Android/Sdk dotnet publish Moz_Avalonia.Android/Moz_Avalonia.Android.csproj -c Release -p:AndroidPackageFormat=aab -p:AndroidGenerateAppBundle=true -p:RunAOTCompilation=true -o artifacts/Moz_Avalonia/android-aab
+
+# Build direct APK installation package
+ANDROID_HOME=~/Android/Sdk dotnet publish Moz_Avalonia.Android/Moz_Avalonia.Android.csproj -c Release -p:AndroidPackageFormat=apk -p:RunAOTCompilation=true -o artifacts/Moz_Avalonia/android-apk
 ```
 
 The resulting applications are:
 
 - `artifacts/Moz_Avalonia/linux-x64/Moz_Avalonia`
 - `artifacts/Moz_Avalonia/win-x64/Moz_Avalonia.exe`
+- `artifacts/Moz_Avalonia/android-aab/com.duckyvpn.mozvpn-Signed.aab` (Google Play)
+- `artifacts/Moz_Avalonia/android-apk/com.duckyvpn.mozvpn-Signed.apk` (Sideload)
 
-Trimming and NativeAOT are intentionally disabled. The current application and networking dependencies use reflection without complete trimming annotations, so enabling either optimization is not considered safe yet.
+Trimming and NativeAOT are intentionally disabled on desktop targets. The current application and networking dependencies use reflection without complete trimming annotations, so enabling either optimization is not considered safe yet. On Android, managed assemblies are compiled Ahead-of-Time (AOT) to native machine code.
 
 See [`Moz_Avalonia/README.md`](Moz_Avalonia/README.md) for architecture and usage details.

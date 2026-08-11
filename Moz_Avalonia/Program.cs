@@ -1,4 +1,4 @@
-﻿using Avalonia;
+using Avalonia;
 using System;
 using HotAvalonia;
 
@@ -15,12 +15,17 @@ sealed class Program
 
     // Avalonia configuration, don't remove; also used by visual designer.
     public static AppBuilder BuildAvaloniaApp()
-        => AppBuilder.Configure<App>()
-            .UsePlatformDetect()
+    {
+        var builder = AppBuilder.Configure<App>();
+#if !ANDROID
+        builder = builder.UsePlatformDetect();
+#endif
+        return builder
 #if DEBUG
             .WithDeveloperTools()
             .UseHotReload()
 #endif
             .WithInterFont()
             .LogToTrace();
+    }
 }

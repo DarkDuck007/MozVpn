@@ -172,7 +172,10 @@
                                 Content="System proxy"
                                 Command="{ReflectionBinding DataContext.UseAsSystemProxyCommand, ElementName=Root}"
                                 CommandParameter="{Binding}" />
-                        <Button Content="Launch browser" Classes="accent" Command="{ReflectionBinding DataContext.LaunchBrowserCommand, ElementName=Root}" CommandParameter="{Binding}" />
+                        <Button IsVisible="{ReflectionBinding !DataContext.IsAndroid, ElementName=Root}"
+                                Content="Launch browser" Classes="accent" Command="{ReflectionBinding DataContext.LaunchBrowserCommand, ElementName=Root}" CommandParameter="{Binding}" />
+                        <Button IsVisible="{ReflectionBinding DataContext.IsAndroid, ElementName=Root}"
+                                Content="{Binding VpnButtonText}" Background="{Binding VpnButtonBrush}" Foreground="White" Command="{ReflectionBinding DataContext.ToggleVpnModeCommand, ElementName=Root}" CommandParameter="{Binding}" />
                       </StackPanel>
                     </Grid>
 
@@ -340,9 +343,10 @@
     </TabControl>
 
     <Border Grid.Row="2" Background="#101D29" BorderBrush="#223548" BorderThickness="0,1,0,0" Padding="12,7">
-      <Grid ColumnDefinitions="*,Auto">
-        <TextBlock Text="Multiple active tunnels are supported; switch the system proxy or launch isolated browser profiles at any time." Classes="muted" FontSize="11" />
-        <StackPanel Grid.Column="1" Orientation="Horizontal">
+      <Grid ColumnDefinitions="*,Auto,Auto">
+        <TextBlock Grid.Column="0" Text="Multiple active tunnels are supported; switch the system proxy or launch isolated browser profiles at any time." Classes="muted" FontSize="11" VerticalAlignment="Center" />
+        <Button Grid.Column="1" Content="Check for Updates" Command="{Binding CheckForUpdatesCommand}" Padding="8,2" Margin="0,0,14,0" FontSize="11" Background="Transparent" BorderThickness="0" Foreground="#2962FF" Cursor="Hand" />
+        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
           <TextBlock Text="Settings: " Classes="muted" FontSize="11" />
           <TextBlock Text="{Binding SettingsPath}" Classes="muted" FontSize="11" />
         </StackPanel>

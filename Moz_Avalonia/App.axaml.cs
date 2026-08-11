@@ -12,6 +12,8 @@ namespace Moz_Avalonia;
 public partial class App : Application
 {
     private MainViewModel? _mainViewModel;
+    public static IVpnServiceManager? VpnManager { get; set; }
+
     public override void Initialize()
     {
         AvaloniaXamlLoader.Load(this);
@@ -19,17 +21,27 @@ public partial class App : Application
 
     public override void OnFrameworkInitializationCompleted()
     {
+        _mainViewModel = new MainViewModel();
+
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
+            VpnManager = new DesktopVpnServiceManager();
             desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
             desktop.Exit += (_, _) => DesktopIntegrationService.ClearWindowsSystemProxyOnExit();
-            _mainViewModel = new MainViewModel();
             desktop.MainWindow = new MainWindow
             {
                 DataContext = _mainViewModel,
             };
-            _ = _mainViewModel.InitializeAsync();
         }
+        else if (ApplicationLifetime is ISingleViewApplicationLifetime singleViewPlatform)
+        {
+            singleViewPlatform.MainView = new MainContainerView
+            {
+                DataContext = _mainViewModel
+            };
+        }
+
+        _ = _mainViewModel.InitializeAsync();
 
         base.OnFrameworkInitializationCompleted();
     }

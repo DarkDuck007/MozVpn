@@ -5,11 +5,15 @@
              xmlns:services="using:Moz_Avalonia.Services"
              xmlns:controls="using:Moz_Avalonia.Controls"
              xmlns:moz="using:MozUtil"
+             xmlns:dialogHost="clr-namespace:DialogHostAvalonia;assembly=DialogHost.Avalonia"
              x:Class="Moz_Avalonia.Views.MobileMainView"
              x:Name="Root"
              x:DataType="vm:MainViewModel"
              Background="#09131D">
-  <Grid RowDefinitions="Auto,*,Auto">
+  <dialogHost:DialogHost Identifier="MobileDialogHost"
+                         HorizontalAlignment="Stretch"
+                         VerticalAlignment="Stretch">
+    <Grid RowDefinitions="Auto,*,Auto">
     <!-- Top Header -->
     <Border Grid.Row="0" Background="#101D29" BorderBrush="#223548" BorderThickness="0,0,0,1" Padding="14,10">
       <Grid ColumnDefinitions="*,Auto">
@@ -24,7 +28,7 @@
     </Border>
 
     <!-- Bottom Tab Control for Phones -->
-    <TabControl Grid.Row="1" TabStripPlacement="Bottom" Padding="0">
+    <TabControl Grid.Row="1" TabStripPlacement="Bottom" Padding="0" SelectedIndex="{Binding SelectedTab, Mode=TwoWay}">
       
       <!-- Tab 1: Profiles -->
       <TabItem Header="Profiles">
@@ -122,7 +126,10 @@
                     <Grid ColumnDefinitions="*,*,*" ColumnSpacing="6">
                       <Button Content="Connect" Command="{Binding ConnectCommand}" Classes="accent" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Padding="8"/>
                       <Button Grid.Column="1" Content="Disconnect" Command="{Binding DisconnectCommand}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Padding="8"/>
-                      <Button Grid.Column="2" Content="Browser" Command="{ReflectionBinding DataContext.LaunchBrowserCommand, ElementName=Root}" CommandParameter="{Binding}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Padding="8"/>
+                      <Button Grid.Column="2" IsVisible="{Binding !$parent[UserControl].((vm:MainViewModel)DataContext).IsAndroid}"
+                              Content="Browser" Command="{Binding $parent[UserControl].((vm:MainViewModel)DataContext).LaunchBrowserCommand}" CommandParameter="{Binding}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Padding="8"/>
+                      <Button Grid.Column="2" IsVisible="{Binding $parent[UserControl].((vm:MainViewModel)DataContext).IsAndroid}"
+                              Content="{Binding VpnButtonText}" Background="{Binding VpnButtonBrush}" Foreground="White" Command="{Binding $parent[UserControl].((vm:MainViewModel)DataContext).ToggleVpnModeCommand}" CommandParameter="{Binding}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Padding="8"/>
                     </Grid>
 
                     <!-- Local proxy details -->
@@ -297,7 +304,12 @@
 
     <!-- Footer -->
     <Border Grid.Row="2" Background="#101D29" BorderBrush="#223548" BorderThickness="0,1,0,0" Padding="10,6">
-      <TextBlock Text="Multiple active tunnels are supported." Classes="muted" FontSize="10" HorizontalAlignment="Center" />
+      <Grid ColumnDefinitions="*,Auto,*">
+        <TextBlock Grid.Column="0" Text="Multiple active tunnels." Classes="muted" FontSize="10" VerticalAlignment="Center" />
+        <Button Grid.Column="1" Content="Check for Updates" Command="{Binding CheckForUpdatesCommand}" Padding="6,1" FontSize="10" Background="Transparent" BorderThickness="0" Foreground="#2962FF" Cursor="Hand" />
+        <TextBlock Grid.Column="2" Text="" Classes="muted" FontSize="10" HorizontalAlignment="Right" />
+      </Grid>
     </Border>
   </Grid>
+  </dialogHost:DialogHost>
 </UserControl>

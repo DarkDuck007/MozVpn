@@ -5,8 +5,11 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Input.Platform;
+using Avalonia.Layout;
+using Avalonia.Media;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -34,6 +37,15 @@ public partial class MainViewModel : ViewModelBase, IAsyncDisposable
 
     public MainViewModel()
     {
+        ConfirmAsync = async (title, message, acceptText) =>
+        {
+            if (OperatingSystem.IsAndroid())
+            {
+                return await ShowDialogAsync(title, message, acceptText, true);
+            }
+            return false;
+        };
+
         foreach (var server in ResourceCatalog.Load("ServerList.txt")) ServerOptions.Add(server);
         foreach (var server in ResourceCatalog.Load("StunList.txt")) StunOptions.Add(server);
         foreach (var channel in Enumerable.Range(1, 64)) ChannelOptions.Add(channel);
@@ -80,6 +92,14 @@ public partial class MainViewModel : ViewModelBase, IAsyncDisposable
     [ObservableProperty] private string _browserUrl = "https://browserleaks.com/ip";
     [ObservableProperty] private string _statusMessage = "Ready";
     [ObservableProperty] private bool _isTestingStun;
+    [ObservableProperty] private bool _isVpnActive;
+    public bool IsAndroid => OperatingSystem.IsAndroid();
+    [ObservableProperty] private bool _isDialogVisible;
+    [ObservableProperty] private string _dialogTitle = string.Empty;
+    [ObservableProperty] private string _dialogMessage = string.Empty;
+    [ObservableProperty] private string _dialogAcceptText = "OK";
+    [ObservableProperty] private bool _isDialogCancelVisible = true;
+    [ObservableProperty] private int _selectedTab;
     [ObservableProperty] private bool _isEditorOpen = true;
     [ObservableProperty] private int _stunTestBatchSize = 12;
     [ObservableProperty] private int _stunTestTimeoutMs = 1800;
@@ -145,12 +165,53 @@ public partial class MainViewModel : ViewModelBase, IAsyncDisposable
 
         foreach (var profile in _settings.SavedProfiles)
             AddProfile(profile);
+
+        SuccessfulStuns.Clear();
+        if (_settings.SuccessfulStuns != null)
+        {
+            SuccessfulStuns.AddRange(_settings.SuccessfulStuns);
+        }
         _initialized = true;
         if (migratedGlobalStartup) await SaveAsync();
         var startupProfiles = Connections.Where(connection => connection.Profile.AutoConnectAtLaunch).ToArray();
         if (startupProfiles.Length > 0)
             await Task.WhenAll(startupProfiles.Select(connection => connection.ConnectCommand.ExecuteAsync(null)));
         StatusMessage = Connections.Count == 0 ? "Create a connection profile to begin." : $"Restored {Connections.Count} connection profile(s).";
+
+        if (OperatingSystem.IsAndroid() && SuccessfulStuns.Count == 0)
+        {
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(1000);
+                await Dispatcher.UIThread.InvokeAsync(async () =>
+                {
+                    await ShowStartupStunDialogAsync();
+                    _ = CheckForUpdatesSilentAsync();
+                });
+            });
+        }
+        else if (OperatingSystem.IsAndroid())
+        {
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(1000);
+                await Dispatcher.UIThread.InvokeAsync(async () =>
+                {
+                    _ = CheckForUpdatesSilentAsync();
+                });
+            });
+        }
+        else
+        {
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(2000);
+                await Dispatcher.UIThread.InvokeAsync(async () =>
+                {
+                    _ = CheckForUpdatesSilentAsync();
+                });
+            });
+        }
     }
 
     [RelayCommand]
@@ -217,6 +278,58 @@ public partial class MainViewModel : ViewModelBase, IAsyncDisposable
     private void DeselectConnection()
     {
         SelectedConnection = null;
+    }
+
+    [RelayCommand]
+    private async Task ToggleVpnModeAsync(ConnectionViewModel? connection)
+    {
+        if (connection is null || App.VpnManager is null) return;
+
+        // Case 1: Tapping a running profile -> Disconnect only the OS tunnel, keep backend connection alive
+        if (App.VpnManager.IsVpnRunning && App.VpnManager.ActiveProfileName == connection.Name)
+        {
+            App.VpnManager.StopVpn();
+            IsVpnActive = false;
+            connection.RefreshVpnButtonText();
+            StatusMessage = "VPN device tunnel stopped.";
+            return;
+        }
+
+        // Case 2: Connection is not connected to the backend yet -> Prompt user to connect first
+        if (!connection.IsConnected)
+        {
+            await ShowMessageAsync(
+                "Not Connected",
+                $"You must connect to the Moz server for '{connection.Name}' first before enabling VPN Mode."
+            );
+            return;
+        }
+
+        // Case 3: Switch tunnels with confirmation dialog if another profile's tunnel is active
+        if (App.VpnManager.IsVpnRunning && App.VpnManager.ActiveProfileName != connection.Name)
+        {
+            bool confirm = await ConfirmAsync(
+                "Switch VPN Tunnel?",
+                $"VPN tunnel is currently active for '{App.VpnManager.ActiveProfileName}'. Do you want to switch the tunnel to '{connection.Name}'?",
+                "Switch"
+            );
+
+            if (!confirm) return;
+
+            // Stop the previous tunnel
+            var activeConnection = Connections.FirstOrDefault(c => c.Name == App.VpnManager.ActiveProfileName);
+            App.VpnManager.StopVpn();
+            if (activeConnection != null)
+            {
+                activeConnection.RefreshVpnButtonText();
+            }
+        }
+
+        // Start the Android VPN Service (pointing to this connection's SocksPort)
+        App.VpnManager.StartVpn(connection.Name, connection.SocksPort);
+        IsVpnActive = true;
+        connection.RefreshVpnButtonText();
+        StatusMessage = $"VPN Tunnel active: {connection.Name}";
     }
 
     [RelayCommand]
@@ -310,11 +423,11 @@ public partial class MainViewModel : ViewModelBase, IAsyncDisposable
     }
 
     [RelayCommand]
-    private void LaunchBrowser(ConnectionViewModel? connection)
+    private async Task LaunchBrowserAsync(ConnectionViewModel? connection)
     {
         if (connection is null || !connection.IsConnected)
         {
-            StatusMessage = "Connect that profile before launching a proxied browser.";
+            await ShowMessageAsync("Not Connected", "Connect that profile before launching a proxied browser.");
             return;
         }
         if (SelectedBrowser is null)
@@ -382,6 +495,10 @@ public partial class MainViewModel : ViewModelBase, IAsyncDisposable
                         item.Status = outcome.Success ? "Succeeded" :
                             outcome.LatencyMs >= timeout ? "Timed out" : "Failed";
                         item.Detail = outcome.Detail;
+                        if (outcome.Success)
+                        {
+                            _ = AddSuccessfulStunAsync(item.Server);
+                        }
                         completed++;
                         StunTestSummary = $"{completed} / {candidates.Length} completed · " +
                                           $"{StunResults.Count(x => x.Success == true)} responding";
@@ -502,17 +619,313 @@ public partial class MainViewModel : ViewModelBase, IAsyncDisposable
         await SaveAsync();
     }
 
+    public List<string> SuccessfulStuns { get; } = new();
+
+    private async Task AddSuccessfulStunAsync(string server)
+    {
+        lock (SuccessfulStuns)
+        {
+            SuccessfulStuns.Remove(server);
+            SuccessfulStuns.Add(server);
+        }
+        await SaveAsync();
+    }
+
+    public async Task<bool> ShowDialogAsync(string title, string message, string acceptText, bool showCancel = true)
+    {
+        var content = new StackPanel { Spacing = 14, Width = 280 };
+        content.Children.Add(new TextBlock { Text = title, FontWeight = FontWeight.Bold, FontSize = 16, Foreground = Brush.Parse("White") });
+        content.Children.Add(new TextBlock { Text = message, TextWrapping = TextWrapping.Wrap, FontSize = 13, Foreground = Brush.Parse("#B8CAD9") });
+
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Spacing = 10, Margin = new Thickness(0, 6, 0, 0) };
+        
+        if (showCancel)
+        {
+            var cancelButton = new Button { Content = "Cancel", MinWidth = 80, HorizontalContentAlignment = HorizontalAlignment.Center };
+            cancelButton.Click += (s, e) => DialogHostAvalonia.DialogHost.Close("MobileDialogHost", false);
+            buttons.Children.Add(cancelButton);
+        }
+
+        var acceptButton = new Button { Content = acceptText, Classes = { "accent" }, MinWidth = 80, HorizontalContentAlignment = HorizontalAlignment.Center };
+        acceptButton.Click += (s, e) => DialogHostAvalonia.DialogHost.Close("MobileDialogHost", true);
+        buttons.Children.Add(acceptButton);
+
+        content.Children.Add(buttons);
+
+        var result = await DialogHostAvalonia.DialogHost.Show(content, "MobileDialogHost");
+        return result is bool b && b;
+    }
+
+    public async Task ShowMessageAsync(string title, string message)
+    {
+        if (OperatingSystem.IsAndroid())
+        {
+            await ShowDialogAsync(title, message, "OK", false);
+        }
+        else
+        {
+            await ConfirmAsync(title, message, "OK");
+        }
+    }
+
+    public async Task ShowStartupStunDialogAsync()
+    {
+        var content = new StackPanel { Spacing = 14, Width = 280 };
+        content.Children.Add(new TextBlock { Text = "STUN Test Recommended", FontWeight = FontWeight.Bold, FontSize = 16, Foreground = Brush.Parse("White") });
+        content.Children.Add(new TextBlock 
+        { 
+            Text = "It is recommended to run a full STUN test first to determine your NAT type. If skipped, the first connection in AUTO mode will take longer to resolve a working server.", 
+            TextWrapping = TextWrapping.Wrap, 
+            FontSize = 13, 
+            Foreground = Brush.Parse("#B8CAD9") 
+        });
+
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Spacing = 10, Margin = new Thickness(0, 6, 0, 0) };
+        
+        var laterButton = new Button { Content = "Later", MinWidth = 80, HorizontalContentAlignment = HorizontalAlignment.Center };
+        laterButton.Click += (s, e) => DialogHostAvalonia.DialogHost.Close("MobileDialogHost", false);
+        buttons.Children.Add(laterButton);
+
+        var testButton = new Button { Content = "Switch & Test", Classes = { "accent" }, MinWidth = 110, HorizontalContentAlignment = HorizontalAlignment.Center };
+        testButton.Click += (s, e) => DialogHostAvalonia.DialogHost.Close("MobileDialogHost", true);
+        buttons.Children.Add(testButton);
+
+        content.Children.Add(buttons);
+
+        var result = await DialogHostAvalonia.DialogHost.Show(content, "MobileDialogHost");
+        if (result is bool b && b)
+        {
+            SelectedTab = 1;
+            if (CanStartStunTests())
+            {
+                _ = StartStunTestsAsync();
+            }
+        }
+    }
+
+    [RelayCommand]
+    private async Task CheckForUpdatesAsync()
+    {
+        await CheckForUpdatesInternalAsync(isStartup: false);
+    }
+
+    public async Task CheckForUpdatesSilentAsync()
+    {
+        await CheckForUpdatesInternalAsync(isStartup: true);
+    }
+
+    private async Task CheckForUpdatesInternalAsync(bool isStartup)
+    {
+        string owner = "DarkDuck007";
+        string repo = "MozVpn";
+        string latestReleaseUrl = $"https://api.github.com/repos/{owner}/{repo}/releases/latest";
+
+        if (!isStartup)
+        {
+            StatusMessage = "Checking for updates…";
+        }
+
+        try
+        {
+            using var client = new System.Net.Http.HttpClient();
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("MozVpnApp");
+            client.Timeout = TimeSpan.FromSeconds(6);
+
+            var response = await client.GetStringAsync(latestReleaseUrl);
+            using var doc = System.Text.Json.JsonDocument.Parse(response);
+            var root = doc.RootElement;
+
+            if (root.TryGetProperty("tag_name", out var tagProp) &&
+                root.TryGetProperty("html_url", out var urlProp))
+            {
+                var tag = tagProp.GetString() ?? "1.0.0";
+                var downloadUrl = urlProp.GetString() ?? string.Empty;
+                var changelog = root.TryGetProperty("body", out var bodyProp) ? bodyProp.GetString() : string.Empty;
+
+                var versionStr = tag.TrimStart('v', 'V');
+                var remoteVersion = new Version(versionStr);
+                var currentVersion = GetCurrentVersion();
+
+                var relMajor = remoteVersion.Major;
+                var relMinor = remoteVersion.Minor;
+                var relBuild = remoteVersion.Build >= 0 ? remoteVersion.Build : 0;
+                var relRevision = remoteVersion.Revision >= 0 ? remoteVersion.Revision : 0;
+
+                var curMajor = currentVersion.Major;
+                var curMinor = currentVersion.Minor;
+                var curBuild = currentVersion.Build >= 0 ? currentVersion.Build : 0;
+                var curRevision = currentVersion.Revision >= 0 ? currentVersion.Revision : 0;
+
+                var normalizedRemote = new Version(relMajor, relMinor, relBuild, relRevision);
+                var normalizedCurrent = new Version(curMajor, curMinor, curBuild, curRevision);
+
+                if (normalizedRemote > normalizedCurrent)
+                {
+                    bool update = await ConfirmAsync(
+                        "Update Available",
+                        $"A new version ({tag}) is available. Would you like to view the release page?\n\nChangelog:\n{changelog}",
+                        "Update"
+                    );
+
+                    if (update && !string.IsNullOrEmpty(downloadUrl))
+                    {
+                        OpenUrl(downloadUrl);
+                    }
+                }
+                else if (!isStartup)
+                {
+                    await ShowMessageAsync("Up to Date", $"You are running the latest version ({currentVersion}).");
+                }
+            }
+        }
+        catch (System.Net.Http.HttpRequestException httpEx)
+        {
+            if (!isStartup)
+            {
+                if (httpEx.StatusCode == System.Net.HttpStatusCode.NotFound)
+                {
+                    await ShowMessageAsync("Up to Date", "No releases published on GitHub yet.");
+                }
+                else
+                {
+                    await ShowMessageAsync("Update Check Failed", $"Could not connect to GitHub: {httpEx.Message}");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            if (!isStartup)
+            {
+                await ShowMessageAsync("Update Check Failed", $"Could not check for updates: {ex.Message}");
+            }
+        }
+    }
+
+    private Version GetCurrentVersion()
+    {
+#if ANDROID
+        try
+        {
+            var context = global::Android.App.Application.Context;
+            var packageInfo = context.PackageManager?.GetPackageInfo(context.PackageName!, 0);
+            if (packageInfo?.VersionName != null)
+            {
+                return new Version(packageInfo.VersionName);
+            }
+        }
+        catch { }
+#endif
+        return typeof(MainViewModel).Assembly.GetName().Version ?? new Version(1, 0, 0);
+    }
+
+    private void OpenUrl(string url)
+    {
+#if ANDROID
+        try
+        {
+            var intent = new global::Android.Content.Intent(global::Android.Content.Intent.ActionView, global::Android.Net.Uri.Parse(url));
+            intent.AddFlags(global::Android.Content.ActivityFlags.NewTask);
+            global::Android.App.Application.Context.StartActivity(intent);
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Failed to open update link: {ex.Message}";
+        }
+#else
+        try
+        {
+            global::System.Diagnostics.Process.Start(new global::System.Diagnostics.ProcessStartInfo
+            {
+                FileName = url,
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Failed to open link: {ex.Message}";
+        }
+#endif
+    }
+
     public async Task<string> ResolveAutoStunAsync()
     {
-        StatusMessage = "Auto mode is testing STUN servers…";
-        var candidates = StunOptions.Where(StunProbeService.IsCandidate).ToArray();
-        var results = await _stunProbe.ProbeAsync(candidates, Math.Clamp(StunTestTimeoutMs, 250, 30000),
-            Math.Clamp(StunTestBatchSize, 1, 64));
-        var winner = candidates.Zip(results, (server, outcome) => new { Server = server, Outcome = outcome })
-            .Where(x => x.Outcome.Success).OrderBy(x => x.Outcome.LatencyMs).FirstOrDefault()
-            ?? throw new InvalidOperationException("Auto STUN could not find a responding server. Add or select a STUN server manually.");
-        StatusMessage = $"Auto STUN chose {winner.Server} at {winner.Outcome.LatencyMs} ms.";
-        return winner.Server;
+        StatusMessage = "Auto mode resolving STUN…";
+
+        // 1. Prioritize currently selected STUN server if it's a specific server (not "Auto" or empty)
+        string currentStun = StunServer;
+        if (!string.IsNullOrWhiteSpace(currentStun) && 
+            !currentStun.Equals("Auto", StringComparison.OrdinalIgnoreCase) && 
+            StunProbeService.IsCandidate(currentStun))
+        {
+            StatusMessage = $"Auto mode testing current STUN: {currentStun}…";
+            var outcome = await _stunProbe.ProbeAsync(currentStun, 1500, CancellationToken.None);
+            if (outcome.Success)
+            {
+                await AddSuccessfulStunAsync(currentStun);
+                StatusMessage = $"Auto STUN reused current: {currentStun} ({outcome.LatencyMs} ms).";
+                return currentStun;
+            }
+        }
+
+        // 2. Try previously successful STUN servers in order of their last success
+        List<string> history;
+        lock (SuccessfulStuns)
+        {
+            // Reverse so we try most recently successful ones first
+            history = SuccessfulStuns.AsEnumerable().Reverse().ToList();
+        }
+
+        foreach (var server in history)
+        {
+            if (server == currentStun) continue; // Already tested
+            StatusMessage = $"Auto mode testing historical STUN: {server}…";
+            var outcome = await _stunProbe.ProbeAsync(server, 1500, CancellationToken.None);
+            if (outcome.Success)
+            {
+                await AddSuccessfulStunAsync(server);
+                StatusMessage = $"Auto STUN chose historical: {server} ({outcome.LatencyMs} ms).";
+                return server;
+            }
+        }
+
+        // 3. Fallback: test all candidates
+        StatusMessage = "Auto mode testing all STUN candidates…";
+        var candidates = StunOptions.Where(StunProbeService.IsCandidate)
+            .Except(history)
+            .Except(new[] { currentStun })
+            .ToArray();
+
+        if (candidates.Length == 0 && history.Count == 0 && StunProbeService.IsCandidate(currentStun))
+        {
+            candidates = new[] { currentStun };
+        }
+
+        if (candidates.Length > 0)
+        {
+            var timeout = Math.Clamp(StunTestTimeoutMs, 250, 30000);
+            var batchSize = Math.Clamp(StunTestBatchSize, 1, 64);
+            var results = await _stunProbe.ProbeAsync(candidates, timeout, batchSize);
+            
+            var winners = candidates.Zip(results, (server, outcome) => new { Server = server, Outcome = outcome })
+                .Where(x => x.Outcome.Success)
+                .OrderBy(x => x.Outcome.LatencyMs)
+                .ToArray();
+
+            if (winners.Length > 0)
+            {
+                // Record all successful ones
+                foreach (var w in winners.Reverse())
+                {
+                    await AddSuccessfulStunAsync(w.Server);
+                }
+
+                var winner = winners[0];
+                StatusMessage = $"Auto STUN chose new: {winner.Server} ({winner.Outcome.LatencyMs} ms).";
+                return winner.Server;
+            }
+        }
+
+        throw new InvalidOperationException("Auto STUN could not find a responding server. Add or select a STUN server manually.");
     }
 
     public async Task SaveAsync()
@@ -536,6 +949,7 @@ public partial class MainViewModel : ViewModelBase, IAsyncDisposable
         _settings.CustomStunServers = StunOptions.Except(ResourceCatalog.Load("StunList.txt")).ToList();
         _settings.CustomHttpProxies = HttpProxyOptions.ToList();
         _settings.SavedProfiles = Connections.Select(x => x.Profile).ToList();
+        _settings.SuccessfulStuns = SuccessfulStuns.ToList();
         await _settingsStore.SaveAsync(_settings);
     }
 

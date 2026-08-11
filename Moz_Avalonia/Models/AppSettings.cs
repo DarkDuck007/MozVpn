@@ -24,6 +24,7 @@ public sealed class AppSettings
     public List<string> CustomStunServers { get; set; } = [];
     public List<string> CustomHttpProxies { get; set; } = [];
     public List<ConnectionProfile> SavedProfiles { get; set; } = [];
+    public List<string> SuccessfulStuns { get; set; } = [];
 }
 
 public sealed class ConnectionProfile

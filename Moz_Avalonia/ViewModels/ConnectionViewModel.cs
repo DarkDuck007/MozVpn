@@ -49,6 +49,7 @@ public partial class ConnectionViewModel : ViewModelBase, IAsyncDisposable
         SocksPort = PortAllocator.FindAvailable(6375 + ordinal * 20);
         HttpPort = PortAllocator.FindAvailable(6385 + ordinal * 20);
         _telemetryTask = RunTelemetryLoopAsync(_lifetime.Token);
+        RefreshVpnButtonText();
     }
 
     public ConnectionProfile Profile { get; }
@@ -58,6 +59,17 @@ public partial class ConnectionViewModel : ViewModelBase, IAsyncDisposable
     public int HttpPort { get; }
     public string SocksAddress => IsConnected ? $"socks5://127.0.0.1:{SocksPort}" : "—";
     public string HttpAddress => IsConnected ? $"http://127.0.0.1:{HttpPort}" : "—";
+    public string VpnButtonText => (App.VpnManager?.IsVpnRunning == true && App.VpnManager.ActiveProfileName == Name) ? "Stop VPN" : "VPN Mode";
+
+    [ObservableProperty] private IBrush _vpnButtonBrush = Brush.Parse("#2962FF");
+
+    public void RefreshVpnButtonText()
+    {
+        OnPropertyChanged(nameof(VpnButtonText));
+        VpnButtonBrush = (App.VpnManager?.IsVpnRunning == true && App.VpnManager.ActiveProfileName == Name)
+            ? Brushes.LimeGreen
+            : Brush.Parse("#2962FF");
+    }
     public IReadOnlyList<double> InboundHistory { get; } = new List<double>();
     public IReadOnlyList<double> OutboundHistory { get; } = new List<double>();
     public ObservableCollection<SubTunInfo> Relays { get; } = [];

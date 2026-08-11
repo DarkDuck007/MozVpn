@@ -4,6 +4,9 @@
     <option name="projectPerEditor">
       <map>
         <entry key="Moz_Avalonia/App.axaml" value="Moz_Avalonia/Moz_Avalonia.csproj" />
+        <entry key="Moz_Avalonia/Views/DesktopMainView.axaml" value="Moz_Avalonia/Moz_Avalonia.csproj" />
+        <entry key="Moz_Avalonia/Views/MainWindow.axaml" value="Moz_Avalonia/Moz_Avalonia.csproj" />
+        <entry key="Moz_Avalonia/Views/MobileMainView.axaml" value="Moz_Avalonia/Moz_Avalonia.csproj" />
       </map>
     </option>
   </component>

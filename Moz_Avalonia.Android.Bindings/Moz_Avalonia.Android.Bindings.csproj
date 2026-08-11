@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-android</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <OutputType>Library</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Reference the compiled AAR from DuckyVPN -->
+    <AndroidLibrary Include="/home/danial/Programming/Projects/Android/DuckyVPN/libcore/libcore.aar">
+      <Bind>true</Bind>
+    </AndroidLibrary>
+  </ItemGroup>
+</Project>
