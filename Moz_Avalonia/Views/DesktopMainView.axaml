@@ -41,7 +41,7 @@
               <ListBox Grid.Row="1" ItemsSource="{Binding Connections}" SelectedItem="{Binding SelectedConnection}" Background="Transparent">
                 <ListBox.ItemTemplate>
                   <DataTemplate x:DataType="vm:ConnectionViewModel">
-                    <Border Classes="card" Padding="10" Margin="0,0,0,8" HorizontalAlignment="Stretch">
+                    <Border Classes="card" Padding="6" Margin="0,0,0,2" HorizontalAlignment="Stretch">
                       <Grid>
                         <Grid IsVisible="{ReflectionBinding !DataContext.IsEditorOpen, ElementName=Root}"
                               RowDefinitions="Auto,Auto,Auto,Auto" ColumnDefinitions="*,Auto">
