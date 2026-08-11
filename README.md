@@ -1,9 +1,10 @@
 # Moz VPN :banana:
+While the name suggests this mainly being used for VPN connections, This is a self-made UDP-Based protocol (using LiteNetLib) as a wrapper for TCP connections (can be anything, really, but I used socks5 to simplify things)
+you could theoretically point the endpoint to any TCP host (server-side) and connect to it from the local proxy address of the client.
+Socks5 and vless are tested. 
+Moz does NOT terminate TLS. Connection security depends on the underlying protocol of your choice.
 
-A banana from hell, for connecting to the internet in Iran
-
-Self-made UDP-Based protocol (using LiteNetLib) as a wrapper for TCP connections (can be anything, really, but I used socks5 to simplify things)
-
+## Classes and Libraries
 Main library, MozUtil, contains all the required classes for a MozConnection, usign an instance of MozManager.
 Avalonia version is the latest and greatest, but there are CLI, WPF and MAUI versions (half-baked, for android) exist as well.
 
@@ -13,7 +14,6 @@ Moz with Avalonia UI supports multiple simultanious active connections, as well 
 ![MozVPN With Multiple Browsers Open](assets/Moz_Avalonia_Multiple_Browsers.png)
 
 ## Building Moz_Avalonia
-
 Install the .NET 10 SDK, then run these commands from the repository root.
 
 Build and run the desktop application locally:
