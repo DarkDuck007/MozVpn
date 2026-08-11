@@ -15,6 +15,12 @@ public class AndroidVpnServiceManager : IVpnServiceManager
     public AndroidVpnServiceManager(Activity activity)
     {
         _activity = activity;
+        var prefs = _activity.GetSharedPreferences("vpn_prefs", FileCreationMode.Private);
+        if (prefs != null)
+        {
+            IsVpnRunning = prefs.GetBoolean("is_running", false);
+            ActiveProfileName = prefs.GetString("active_profile", null);
+        }
     }
 
     public void StartVpn(string profileName, int socksPort)
@@ -29,6 +35,7 @@ public class AndroidVpnServiceManager : IVpnServiceManager
     {
         var serviceIntent = new Intent(_activity, typeof(MozVpnService));
         serviceIntent.PutExtra("SOCKS_PORT", socksPort);
+        serviceIntent.PutExtra("PROFILE_NAME", profileName);
         
         if (global::Android.OS.Build.VERSION.SdkInt >= global::Android.OS.BuildVersionCodes.O)
         {
@@ -41,6 +48,9 @@ public class AndroidVpnServiceManager : IVpnServiceManager
 
         IsVpnRunning = true;
         ActiveProfileName = profileName;
+
+        var prefs = _activity.GetSharedPreferences("vpn_prefs", FileCreationMode.Private);
+        prefs?.Edit().PutBoolean("is_running", true).PutString("active_profile", profileName).Commit();
     }
 
     public void StopVpn()
@@ -51,5 +61,8 @@ public class AndroidVpnServiceManager : IVpnServiceManager
 
         IsVpnRunning = false;
         ActiveProfileName = null;
+
+        var prefs = _activity.GetSharedPreferences("vpn_prefs", FileCreationMode.Private);
+        prefs?.Edit().PutBoolean("is_running", false).PutString("active_profile", null).Commit();
     }
 }

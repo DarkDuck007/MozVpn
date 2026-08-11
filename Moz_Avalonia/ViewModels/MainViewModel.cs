@@ -904,28 +904,58 @@ public partial class MainViewModel : ViewModelBase, IAsyncDisposable
         {
             var timeout = Math.Clamp(StunTestTimeoutMs, 250, 30000);
             var batchSize = Math.Clamp(StunTestBatchSize, 1, 64);
-            var results = await _stunProbe.ProbeAsync(candidates, timeout, batchSize);
-            
-            var winners = candidates.Zip(results, (server, outcome) => new { Server = server, Outcome = outcome })
-                .Where(x => x.Outcome.Success)
-                .OrderBy(x => x.Outcome.LatencyMs)
-                .ToArray();
+            var tcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-            if (winners.Length > 0)
+            // Run STUN testing in background, continuing even after early return
+            _ = Task.Run(async () =>
             {
-                // Record all successful ones
-                foreach (var w in winners.Reverse())
+                using var gate = new SemaphoreSlim(batchSize);
+                var tasks = candidates.Select(async server =>
                 {
-                    await AddSuccessfulStunAsync(w.Server);
-                }
+                    await gate.WaitAsync();
+                    try
+                    {
+                        var outcome = await _stunProbe.ProbeAsync(server, timeout, CancellationToken.None);
+                        if (outcome.Success)
+                        {
+                            await AddSuccessfulStunAsync(server);
+                            tcs.TrySetResult(server);
+                        }
+                    }
+                    catch { }
+                    finally
+                    {
+                        gate.Release();
+                    }
+                }).ToArray();
 
-                var winner = winners[0];
-                StatusMessage = $"Auto STUN chose new: {winner.Server} ({winner.Outcome.LatencyMs} ms).";
-                return winner.Server;
+                await Task.WhenAll(tasks);
+                // If everything completes and no successful STUN server was found, resolve the TCS with empty
+                tcs.TrySetResult(string.Empty);
+            });
+
+            var firstWinner = await tcs.Task;
+            if (!string.IsNullOrEmpty(firstWinner))
+            {
+                return firstWinner;
             }
         }
 
         throw new InvalidOperationException("Auto STUN could not find a responding server. Add or select a STUN server manually.");
+    }
+
+    private readonly SemaphoreSlim _saveSemaphore = new(1, 1);
+    private async Task SaveSettingsAsync()
+    {
+        await _saveSemaphore.WaitAsync();
+        try
+        {
+            await _settingsStore.SaveAsync(_settings);
+        }
+        finally
+        {
+            _saveSemaphore.Release();
+        }
     }
 
     public async Task SaveAsync()
@@ -950,14 +980,14 @@ public partial class MainViewModel : ViewModelBase, IAsyncDisposable
         _settings.CustomHttpProxies = HttpProxyOptions.ToList();
         _settings.SavedProfiles = Connections.Select(x => x.Profile).ToList();
         _settings.SuccessfulStuns = SuccessfulStuns.ToList();
-        await _settingsStore.SaveAsync(_settings);
+        await SaveSettingsAsync();
     }
 
     private async Task PersistEditorStateAsync()
     {
         if (!_initialized) return;
         _settings.IsEditorOpen = IsEditorOpen;
-        await _settingsStore.SaveAsync(_settings);
+        await SaveSettingsAsync();
     }
 
     private ConnectionViewModel AddProfile(ConnectionProfile profile)

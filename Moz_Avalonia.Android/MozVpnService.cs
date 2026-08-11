@@ -28,6 +28,12 @@ public class MozVpnService : VpnService, IBoxPlatformInterface, INB4AInterface
         }
 
         int socksPort = intent?.GetIntExtra("SOCKS_PORT", 64900) ?? 64900;
+        string? profileName = intent?.GetStringExtra("PROFILE_NAME");
+        if (profileName != null)
+        {
+            var prefs = GetSharedPreferences("vpn_prefs", FileCreationMode.Private);
+            prefs?.Edit().PutBoolean("is_running", true).PutString("active_profile", profileName).Commit();
+        }
 
         // 1. Instantly start foreground status notification to satisfy OS startup check
         CreateNotificationChannel();
@@ -145,6 +151,13 @@ public class MozVpnService : VpnService, IBoxPlatformInterface, INB4AInterface
 
     private void StopVpn()
     {
+        try
+        {
+            var prefs = GetSharedPreferences("vpn_prefs", FileCreationMode.Private);
+            prefs?.Edit().PutBoolean("is_running", false).PutString("active_profile", null).Commit();
+        }
+        catch {}
+
         try
         {
             _singBoxInstance?.Close();
