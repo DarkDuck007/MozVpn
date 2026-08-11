@@ -106,16 +106,22 @@
                   <TextBox Text="{Binding ProfileName}" />
                   <TextBlock Text="Moz server" Classes="muted" />
                   <Grid ColumnDefinitions="*,Auto">
-                    <TextBox Text="{Binding ServerAddress, Mode=TwoWay}" PlaceholderText="https://server/" />
+                    <ComboBox ItemsSource="{Binding ServerOptions}"
+                              Text="{Binding ServerAddress, Mode=TwoWay}"
+                              IsEditable="True"
+                              HorizontalAlignment="Stretch"
+                              PlaceholderText="https://server/ or select known" />
                     <Button Grid.Column="1" Content="＋" Command="{Binding AddCustomServerCommand}" ToolTip.Tip="Remember this server" />
                   </Grid>
-                  <ComboBox ItemsSource="{Binding ServerOptions}" SelectedItem="{Binding SelectedServerOption, Mode=TwoWay}" PlaceholderText="Known servers" />
                   <TextBlock Text="STUN server" Classes="muted" />
                   <Grid ColumnDefinitions="*,Auto">
-                    <TextBox Text="{Binding StunServer, Mode=TwoWay}" PlaceholderText="Auto or host:port" />
+                    <ComboBox ItemsSource="{Binding StunOptions}"
+                              Text="{Binding StunServer, Mode=TwoWay}"
+                              IsEditable="True"
+                              HorizontalAlignment="Stretch"
+                              PlaceholderText="Auto or host:port or select known" />
                     <Button Grid.Column="1" Content="＋" Command="{Binding AddCustomStunCommand}" ToolTip.Tip="Remember this STUN server" />
                   </Grid>
-                  <ComboBox ItemsSource="{Binding StunOptions}" SelectedItem="{Binding SelectedStunOption, Mode=TwoWay}" PlaceholderText="Known STUN servers" />
                   <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
                     <StackPanel>
                       <TextBlock Text="Transport" Classes="muted" />

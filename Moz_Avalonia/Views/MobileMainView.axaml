@@ -211,12 +211,24 @@
                   <TextBox Text="{Binding ProfileName}" Padding="6"/>
                   
                   <TextBlock Text="Moz server" Classes="muted" FontSize="11" />
-                  <TextBox Text="{Binding ServerAddress, Mode=TwoWay}" PlaceholderText="https://server/" Padding="6"/>
-                  <ComboBox ItemsSource="{Binding ServerOptions}" SelectedItem="{Binding SelectedServerOption, Mode=TwoWay}" HorizontalAlignment="Stretch" />
+                  <Grid ColumnDefinitions="*,Auto">
+                    <ComboBox ItemsSource="{Binding ServerOptions}"
+                              Text="{Binding ServerAddress, Mode=TwoWay}"
+                              IsEditable="True"
+                              HorizontalAlignment="Stretch"
+                              PlaceholderText="https://server/ or select known" />
+                    <Button Grid.Column="1" Content="＋" Command="{Binding AddCustomServerCommand}" ToolTip.Tip="Remember this server" />
+                  </Grid>
                   
                   <TextBlock Text="STUN server" Classes="muted" FontSize="11" />
-                  <TextBox Text="{Binding StunServer, Mode=TwoWay}" PlaceholderText="Auto or host:port" Padding="6"/>
-                  <ComboBox ItemsSource="{Binding StunOptions}" SelectedItem="{Binding SelectedStunOption, Mode=TwoWay}" HorizontalAlignment="Stretch" />
+                  <Grid ColumnDefinitions="*,Auto">
+                    <ComboBox ItemsSource="{Binding StunOptions}"
+                              Text="{Binding StunServer, Mode=TwoWay}"
+                              IsEditable="True"
+                              HorizontalAlignment="Stretch"
+                              PlaceholderText="Auto or host:port or select known" />
+                    <Button Grid.Column="1" Content="＋" Command="{Binding AddCustomStunCommand}" ToolTip.Tip="Remember this STUN server" />
+                  </Grid>
                   
                   <Grid ColumnDefinitions="*,*" ColumnSpacing="6">
                     <StackPanel>
