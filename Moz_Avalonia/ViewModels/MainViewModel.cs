@@ -214,6 +214,12 @@ public partial class MainViewModel : ViewModelBase, IAsyncDisposable
     }
 
     [RelayCommand]
+    private void DeselectConnection()
+    {
+        SelectedConnection = null;
+    }
+
+    [RelayCommand]
     private async Task EditConnectionAsync(ConnectionViewModel? connection)
     {
         if (connection is null) return;

@@ -12,6 +12,7 @@ public partial class MainWindow : Window
 {
     private bool _shutdownReady;
     private bool _trayHintShown;
+    private UserControl? _currentView;
 
     public MainWindow()
     {
@@ -29,10 +30,38 @@ public partial class MainWindow : Window
         };
         DataContextChanged += (_, _) =>
         {
+            if (_currentView != null)
+            {
+                _currentView.DataContext = DataContext;
+            }
             if (DataContext is MainViewModel viewModel) viewModel.ConfirmAsync = ShowConfirmationAsync;
             if (DataContext is MainViewModel stunViewModel)
                 stunViewModel.ChooseStunNatGroupAsync = ShowStunNatGroupDialogAsync;
         };
+    }
+
+    protected override void OnSizeChanged(SizeChangedEventArgs e)
+    {
+        base.OnSizeChanged(e);
+        UpdateLayoutForSize(e.NewSize.Width);
+    }
+
+    private void UpdateLayoutForSize(double width)
+    {
+        bool isMobile = width < 750;
+
+        if (isMobile && _currentView is not MobileMainView)
+        {
+            _currentView = new MobileMainView();
+            _currentView.DataContext = DataContext;
+            Content = _currentView;
+        }
+        else if (!isMobile && _currentView is not DesktopMainView)
+        {
+            _currentView = new DesktopMainView();
+            _currentView.DataContext = DataContext;
+            Content = _currentView;
+        }
     }
 
     private async Task<StunNatGroup?> ShowStunNatGroupDialogAsync(

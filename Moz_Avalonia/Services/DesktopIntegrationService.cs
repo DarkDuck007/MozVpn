@@ -93,6 +93,7 @@ public sealed class DesktopIntegrationService
         startInfo.ArgumentList.Add("--no-default-browser-check");
         startInfo.ArgumentList.Add("--disable-background-networking");
         startInfo.ArgumentList.Add("--disable-sync");
+        startInfo.ArgumentList.Add("--force-webrtc-ip-handling-policy=disable_non_proxied_udp");
         if (!string.IsNullOrWhiteSpace(url))
             startInfo.ArgumentList.Add(url);
         Process.Start(startInfo);

@@ -1,0 +1,270 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Moz_Avalonia.ViewModels"
+             xmlns:models="using:Moz_Avalonia.Models"
+             xmlns:services="using:Moz_Avalonia.Services"
+             xmlns:controls="using:Moz_Avalonia.Controls"
+             xmlns:moz="using:MozUtil"
+             x:Class="Moz_Avalonia.Views.MobileMainView"
+             x:Name="Root"
+             x:DataType="vm:MainViewModel"
+             Background="#09131D">
+  <Grid RowDefinitions="Auto,*,Auto">
+    <!-- Top Header -->
+    <Border Grid.Row="0" Background="#101D29" BorderBrush="#223548" BorderThickness="0,0,0,1" Padding="14,10">
+      <Grid ColumnDefinitions="*,Auto">
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <Border Width="28" Height="28" CornerRadius="4" Background="#000000" ClipToBounds="True">
+            <Image Source="/Assets/avalonia-logo.ico" Stretch="Uniform" />
+          </Border>
+          <TextBlock Text="MOZ VPN" FontWeight="Bold" FontSize="16" VerticalAlignment="Center" />
+        </StackPanel>
+        <TextBlock Grid.Column="1" Text="{Binding StatusMessage}" FontSize="12" Foreground="#B8CAD9" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="160" />
+      </Grid>
+    </Border>
+
+    <!-- Bottom Tab Control for Phones -->
+    <TabControl Grid.Row="1" TabStripPlacement="Bottom" Padding="0">
+      
+      <!-- Tab 1: Profiles -->
+      <TabItem Header="Profiles">
+        <Grid>
+          <!-- List of profiles (visible if no profile is selected and editor is closed) -->
+          <Grid IsVisible="{Binding SelectedConnection, Converter={x:Static ObjectConverters.IsNull}}" Margin="10">
+            <Grid RowDefinitions="Auto,*">
+              <Button Content="＋ Create new profile" Command="{Binding ToggleEditorCommand}" 
+                      HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Margin="0,0,0,10" Padding="10"/>
+              
+              <ListBox Grid.Row="1" ItemsSource="{Binding Connections}" SelectedItem="{Binding SelectedConnection}" Background="Transparent">
+                <ListBox.ItemTemplate>
+                  <DataTemplate x:DataType="vm:ConnectionViewModel">
+                    <Border Classes="card" Padding="12" Margin="0,0,0,8" HorizontalAlignment="Stretch">
+                      <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                          <Ellipse Width="10" Height="10" Fill="{Binding StatusBrush}" VerticalAlignment="Center" />
+                          <TextBlock Text="{Binding Name}" FontWeight="Bold" FontSize="14" />
+                        </StackPanel>
+                        <TextBlock Grid.Row="1" Text="{Binding ServerAddress}" FontSize="11" Classes="muted" TextTrimming="CharacterEllipsis" MaxWidth="240" Margin="18,4,0,0" />
+                        
+                        <StackPanel Grid.Column="1" Grid.RowSpan="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                          <!-- Quick action buttons -->
+                          <Button Content="▶" Command="{Binding ConnectCommand}" Padding="8,4" FontSize="12" />
+                          <Button Content="■" Command="{Binding DisconnectCommand}" Padding="8,4" FontSize="12" />
+                        </StackPanel>
+                      </Grid>
+                    </Border>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+            </Grid>
+          </Grid>
+
+          <!-- Selected Profile Detail (visible if selected and editor is closed) -->
+          <ScrollViewer IsVisible="{Binding SelectedConnection, Converter={x:Static ObjectConverters.IsNotNull}}" Margin="10">
+            <ContentControl Content="{Binding SelectedConnection}">
+              <ContentControl.ContentTemplate>
+                <DataTemplate DataType="vm:ConnectionViewModel" x:DataType="vm:ConnectionViewModel">
+                  <StackPanel Spacing="12">
+                    <!-- Back navigation header -->
+                    <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,0,0,4">
+                      <Button Content="← Profiles" Command="{ReflectionBinding DataContext.DeselectConnectionCommand, ElementName=Root}" Padding="6,4" />
+                      <TextBlock Grid.Column="1" Text="{Binding Name}" FontWeight="Bold" FontSize="16" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                      <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4">
+                        <Button Content="Edit" Command="{ReflectionBinding DataContext.EditConnectionCommand, ElementName=Root}" CommandParameter="{Binding}" Padding="6,4" />
+                        <Button Content="Del" Classes="danger" Command="{ReflectionBinding DataContext.RemoveConnectionCommand, ElementName=Root}" CommandParameter="{Binding}" Padding="6,4" />
+                      </StackPanel>
+                    </Grid>
+
+                    <!-- Connection Stats Grid -->
+                    <Grid ColumnDefinitions="*,*,*" ColumnSpacing="8">
+                      <Border Classes="card" Padding="8">
+                        <StackPanel>
+                          <TextBlock Text="UDP tunnel" Classes="muted" FontSize="10" />
+                          <TextBlock Text="{Binding UdpStatus}" Foreground="{Binding StatusBrush}" FontSize="13" FontWeight="Bold" />
+                        </StackPanel>
+                      </Border>
+                      <Border Grid.Column="1" Classes="card" Padding="8">
+                        <StackPanel>
+                          <TextBlock Text="HTTP" Classes="muted" FontSize="10" />
+                          <TextBlock Text="{Binding HttpStatus}" FontSize="13" FontWeight="Bold" />
+                        </StackPanel>
+                      </Border>
+                      <Border Grid.Column="2" Classes="card" Padding="8">
+                        <StackPanel>
+                          <TextBlock Text="Uptime" Classes="muted" FontSize="10" />
+                          <TextBlock Text="{Binding Uptime}" FontSize="13" FontWeight="Bold" />
+                        </StackPanel>
+                      </Border>
+                    </Grid>
+
+                    <!-- Control Panel Buttons (Start, Stop, Browser) -->
+                    <Grid ColumnDefinitions="*,*,*" ColumnSpacing="6">
+                      <Button Content="Connect" Command="{Binding ConnectCommand}" Classes="accent" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Padding="8"/>
+                      <Button Grid.Column="1" Content="Disconnect" Command="{Binding DisconnectCommand}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Padding="8"/>
+                      <Button Grid.Column="2" Content="Browser" Command="{ReflectionBinding DataContext.LaunchBrowserCommand, ElementName=Root}" CommandParameter="{Binding}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Padding="8"/>
+                    </Grid>
+
+                    <!-- Local proxy details -->
+                    <Border Classes="card" Padding="12">
+                      <StackPanel Spacing="6">
+                        <TextBlock Text="Local proxies" FontWeight="SemiBold" FontSize="12" />
+                        <Grid ColumnDefinitions="Auto,*" Margin="0,4,0,0">
+                          <TextBlock Text="SOCKS5: " Classes="muted" FontSize="11" />
+                          <SelectableTextBlock Grid.Column="1" Text="{Binding SocksAddress}" FontSize="11" FontWeight="SemiBold"/>
+                        </Grid>
+                        <Grid ColumnDefinitions="Auto,*">
+                          <TextBlock Text="HTTP:   " Classes="muted" FontSize="11" />
+                          <SelectableTextBlock Grid.Column="1" Text="{Binding HttpAddress}" FontSize="11" FontWeight="SemiBold"/>
+                        </Grid>
+                      </StackPanel>
+                    </Border>
+
+                    <!-- Bandwidth Graph -->
+                    <Border Classes="card" Padding="10">
+                      <StackPanel Spacing="6">
+                        <Grid ColumnDefinitions="*,Auto,Auto">
+                          <TextBlock Text="Bandwidth" FontWeight="SemiBold" FontSize="12" />
+                          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" Margin="0,0,8,0"><Ellipse Fill="#4CC9F0" Width="6" Height="6" /><TextBlock Text="In" Classes="muted" FontSize="9" /></StackPanel>
+                          <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4"><Ellipse Fill="#F72585" Width="6" Height="6" /><TextBlock Text="Out" Classes="muted" FontSize="9" /></StackPanel>
+                        </Grid>
+                        <controls:BandwidthGraph Height="120" Connection="{Binding}" />
+                        <Grid ColumnDefinitions="*,*,*,*" Margin="0,4,0,0">
+                          <StackPanel><TextBlock Text="Down" Classes="muted" FontSize="9" /><TextBlock Text="{Binding InboundRate}" FontSize="11" /></StackPanel>
+                          <StackPanel Grid.Column="1"><TextBlock Text="Up" Classes="muted" FontSize="9" /><TextBlock Text="{Binding OutboundRate}" FontSize="11" /></StackPanel>
+                          <StackPanel Grid.Column="2"><TextBlock Text="Total Dn" Classes="muted" FontSize="9" /><TextBlock Text="{Binding TotalIn}" FontSize="11" /></StackPanel>
+                          <StackPanel Grid.Column="3"><TextBlock Text="Total Up" Classes="muted" FontSize="9" /><TextBlock Text="{Binding TotalOut}" FontSize="11" /></StackPanel>
+                        </Grid>
+                      </StackPanel>
+                    </Border>
+
+                    <!-- Mobile Sub-tabs for Logs, Stats, Relays -->
+                    <TabControl MinHeight="160">
+                      <TabItem Header="Status">
+                        <Border Classes="card" Margin="0,6,0,0" Padding="10">
+                          <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" RowSpacing="10">
+                            <StackPanel><TextBlock Text="Latency" Classes="muted" FontSize="10" /><TextBlock Text="{Binding Latency}" Foreground="{Binding LatencyBrush}" FontSize="16" /></StackPanel>
+                            <StackPanel Grid.Column="1"><TextBlock Text="Packet loss" Classes="muted" FontSize="10" /><TextBlock Text="{Binding PacketLoss}" FontSize="16" /></StackPanel>
+                            <StackPanel Grid.Row="1"><TextBlock Text="Connections" Classes="muted" FontSize="10" /><TextBlock Text="{Binding ActiveConnections}" FontSize="16" /></StackPanel>
+                            <StackPanel Grid.Row="1" Grid.Column="1"><TextBlock Text="Transport" Classes="muted" FontSize="10" /><TextBlock Text="{Binding Transport}" FontSize="16" /></StackPanel>
+                          </Grid>
+                        </Border>
+                      </TabItem>
+                      <TabItem Header="Relays">
+                        <Grid Margin="0,6,0,0" RowDefinitions="Auto,*">
+                          <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
+                            <TextBox Text="{Binding RelayEndpoint}" PlaceholderText="host:port" Padding="6" FontSize="12"/>
+                            <Button Grid.Column="1" Content="Create" Command="{Binding CreateRelayCommand}" Padding="8,6" FontSize="12"/>
+                          </Grid>
+                          <ItemsControl Grid.Row="1" Margin="0,6,0,0" ItemsSource="{Binding Relays}">
+                            <ItemsControl.ItemTemplate>
+                              <DataTemplate x:DataType="moz:SubTunInfo">
+                                <Border Classes="card" Padding="8" Margin="0,0,0,4">
+                                  <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6">
+                                    <TextBlock Text="{Binding DestinationHostName}" TextTrimming="CharacterEllipsis" FontSize="11" VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding Status}" FontSize="11" VerticalAlignment="Center"/>
+                                    <Button Grid.Column="2" Content="Retry" Command="{ReflectionBinding $parent[ItemsControl].DataContext.ReconnectRelayCommand}" CommandParameter="{Binding}" Padding="4" FontSize="10"/>
+                                  </Grid>
+                                </Border>
+                              </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                          </ItemsControl>
+                        </Grid>
+                      </TabItem>
+                      <TabItem Header="Log">
+                        <TextBox Margin="0,6,0,0" Text="{Binding Log}" AcceptsReturn="True" IsReadOnly="True" FontSize="10" TextWrapping="Wrap" FontFamily="monospace" Height="120" ScrollViewer.VerticalScrollBarVisibility="Auto" />
+                      </TabItem>
+                    </TabControl>
+                  </StackPanel>
+                </DataTemplate>
+              </ContentControl.ContentTemplate>
+            </ContentControl>
+          </ScrollViewer>
+
+          <!-- Overlay profile editor (visible if IsEditorOpen is true) -->
+          <Border IsVisible="{Binding IsEditorOpen}" Background="#101D29" Padding="12">
+            <Grid RowDefinitions="Auto,*">
+              <TextBlock Text="{Binding EditorHeader}" FontSize="16" FontWeight="Bold" Margin="0,0,0,8" />
+              <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                <StackPanel Spacing="10" Margin="0,0,4,0">
+                  <TextBlock Text="Profile name" Classes="muted" FontSize="11" />
+                  <TextBox Text="{Binding ProfileName}" Padding="6"/>
+                  
+                  <TextBlock Text="Moz server" Classes="muted" FontSize="11" />
+                  <TextBox Text="{Binding ServerAddress, Mode=TwoWay}" PlaceholderText="https://server/" Padding="6"/>
+                  <ComboBox ItemsSource="{Binding ServerOptions}" SelectedItem="{Binding SelectedServerOption, Mode=TwoWay}" HorizontalAlignment="Stretch" />
+                  
+                  <TextBlock Text="STUN server" Classes="muted" FontSize="11" />
+                  <TextBox Text="{Binding StunServer, Mode=TwoWay}" PlaceholderText="Auto or host:port" Padding="6"/>
+                  <ComboBox ItemsSource="{Binding StunOptions}" SelectedItem="{Binding SelectedStunOption, Mode=TwoWay}" HorizontalAlignment="Stretch" />
+                  
+                  <Grid ColumnDefinitions="*,*" ColumnSpacing="6">
+                    <StackPanel>
+                      <TextBlock Text="Transport" Classes="muted" FontSize="11" />
+                      <ComboBox ItemsSource="{Binding TransportOptions}" SelectedItem="{Binding SelectedTransport}" HorizontalAlignment="Stretch"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="1">
+                      <TextBlock Text="Max channels" Classes="muted" FontSize="11" />
+                      <ComboBox ItemsSource="{Binding ChannelOptions}" SelectedItem="{Binding MaxChannels}" HorizontalAlignment="Stretch"/>
+                    </StackPanel>
+                  </Grid>
+
+                  <CheckBox Content="Symmetric" IsChecked="{Binding ForceSymmetric}" />
+                  <CheckBox Content="Aggressive ports" IsChecked="{Binding AggressivePortScan}" />
+                  <CheckBox Content="Skip STUN" IsChecked="{Binding SkipStun}" />
+                  <CheckBox Content="Auto-connect at launch" IsChecked="{Binding AutoConnectProfile}" />
+                  
+                  <Grid ColumnDefinitions="*,*,*" ColumnSpacing="6" Margin="0,6,0,0">
+                    <Button Content="Cancel" Command="{Binding CancelEditCommand}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"/>
+                    <Button Grid.Column="1" Content="Save" Command="{Binding AddConnectionCommand}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"/>
+                    <Button Grid.Column="2" Content="Save/Conn" Classes="accent" Command="{Binding AddAndConnectCommand}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"/>
+                  </Grid>
+                </StackPanel>
+              </ScrollViewer>
+            </Grid>
+          </Border>
+        </Grid>
+      </TabItem>
+
+      <!-- Tab 2: STUN Tests -->
+      <TabItem Header="STUN">
+        <Grid Margin="12" RowDefinitions="Auto,Auto,*">
+          <!-- STUN Actions -->
+          <Grid ColumnDefinitions="*,*,*" ColumnSpacing="6" Margin="0,0,0,10">
+            <Button Content="Start" Command="{Binding StartStunTestsCommand}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Padding="8"/>
+            <Button Grid.Column="1" Content="Stop" Command="{Binding StopStunTestsCommand}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Padding="8"/>
+            <Button Grid.Column="2" Content="Restart" Command="{Binding RestartStunTestsCommand}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Padding="8"/>
+          </Grid>
+          
+          <StackPanel Grid.Row="1" Spacing="4" Margin="0,0,0,10">
+            <TextBlock Text="{Binding StunTestSummary}" TextWrapping="Wrap" FontSize="12" />
+            <TextBlock Text="Batch size controls STUN query concurrency." Classes="muted" FontSize="10" />
+          </StackPanel>
+
+          <!-- STUN Results List -->
+          <Border Grid.Row="2" Classes="card" Padding="8">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+              <ItemsControl ItemsSource="{Binding StunResults}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="services:StunProbeResult">
+                    <Border BorderBrush="#223548" BorderThickness="0,0,0,1" Padding="0,6">
+                      <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto">
+                        <TextBlock Text="{Binding Server}" TextTrimming="CharacterEllipsis" FontWeight="SemiBold" FontSize="12"/>
+                        <TextBlock Grid.Column="1" Text="{Binding LatencyMs, StringFormat={}{0} ms}" FontSize="12" Foreground="#4CC9F0" />
+                        <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Text="{Binding Detail}" FontSize="10" Classes="muted" TextTrimming="CharacterEllipsis" Margin="0,2,0,0"/>
+                      </Grid>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </ScrollViewer>
+          </Border>
+        </Grid>
+      </TabItem>
+    </TabControl>
+
+    <!-- Footer -->
+    <Border Grid.Row="2" Background="#101D29" BorderBrush="#223548" BorderThickness="0,1,0,0" Padding="10,6">
+      <TextBlock Text="Multiple active tunnels are supported." Classes="muted" FontSize="10" HorizontalAlignment="Center" />
+    </Border>
+  </Grid>
+</UserControl>
