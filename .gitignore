@@ -364,3 +364,7 @@ FodyWeavers.xsd
 
 # Local agent memory (intentionally not versioned)
 /AGENTS.md
+
+# Android signing keystores
+*.keystore
+*.jks
