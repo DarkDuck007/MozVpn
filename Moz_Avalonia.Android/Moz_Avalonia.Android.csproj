@@ -17,4 +17,11 @@
     <ProjectReference Include="..\MozUtil\MozUtil.csproj" />
     <ProjectReference Include="..\Moz_Avalonia.Android.Bindings\Moz_Avalonia.Android.Bindings.csproj" />
   </ItemGroup>
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <AndroidKeyStore>true</AndroidKeyStore>
+    <AndroidSigningKeyStore>release.keystore</AndroidSigningKeyStore>
+    <AndroidSigningStorePass>duckyvpn2026</AndroidSigningStorePass>
+    <AndroidSigningKeyAlias>duckykey</AndroidSigningKeyAlias>
+    <AndroidSigningKeyPass>duckyvpn2026</AndroidSigningKeyPass>
+  </PropertyGroup>
 </Project>

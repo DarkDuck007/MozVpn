@@ -26,6 +26,14 @@ public class MainActivity : AvaloniaMainActivity
 
         base.OnCreate(savedInstanceState);
 
+        if (global::Android.OS.Build.VERSION.SdkInt >= global::Android.OS.BuildVersionCodes.Tiramisu)
+        {
+            if (CheckSelfPermission(global::Android.Manifest.Permission.PostNotifications) != global::Android.Content.PM.Permission.Granted)
+            {
+                RequestPermissions(new[] { global::Android.Manifest.Permission.PostNotifications }, 101);
+            }
+        }
+
         var intent = VpnService.Prepare(this);
         if (intent != null)
         {

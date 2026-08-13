@@ -277,6 +277,7 @@ public partial class ConnectionViewModel : ViewModelBase, IAsyncDisposable
                 StatusBrush = Brushes.LimeGreen;
                 _connectedAt ??= DateTimeOffset.UtcNow;
                 if (!wasConnected) _notify($"{Name} connected", "The UDP tunnel is ready.");
+                App.VpnManager?.UpdateNotificationStatus("Connected");
                 break;
             case StatusResult.UDPConnecting:
             case StatusResult.UDPReconnecting:
@@ -284,18 +285,24 @@ public partial class ConnectionViewModel : ViewModelBase, IAsyncDisposable
                 StatusBrush = Brushes.Orange;
                 if (status == StatusResult.UDPReconnecting)
                     _notify($"{Name} interrupted", "The tunnel is trying to reconnect.");
+                App.VpnManager?.UpdateNotificationStatus(UdpStatus);
                 break;
             case StatusResult.SendingStun: UdpStatus = "Testing STUN…"; StatusBrush = Brushes.Orange; break;
             case StatusResult.StunSuccess: UdpStatus = "STUN succeeded"; break;
             case StatusResult.StunFailed:
                 UdpStatus = "STUN failed"; StatusBrush = Brushes.IndianRed;
-                _notify($"{Name}: STUN failed", "The public endpoint could not be discovered."); break;
+                _notify($"{Name}: STUN failed", "The public endpoint could not be discovered.");
+                App.VpnManager?.UpdateNotificationStatus("STUN Failed");
+                break;
             case StatusResult.UDPError:
                 UdpStatus = "Connection failed"; StatusBrush = Brushes.IndianRed;
-                _notify($"{Name} failed", "The UDP tunnel encountered an error."); break;
+                _notify($"{Name} failed", "The UDP tunnel encountered an error.");
+                App.VpnManager?.UpdateNotificationStatus("Connection Error");
+                break;
             case StatusResult.UDPDisconnected:
                 UdpStatus = "Disconnected"; IsConnected = false; StatusBrush = Brushes.IndianRed;
                 if (wasConnected) _notify($"{Name} disconnected", "The UDP tunnel is no longer connected.");
+                App.VpnManager?.UpdateNotificationStatus("Disconnected");
                 _ = DisconnectCoreAsync(); break;
             case StatusResult.HTTPConnected: HttpStatus = "Connected"; break;
             case StatusResult.HTTPConnecting: HttpStatus = "Connecting…"; break;

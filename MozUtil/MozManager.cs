@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Buffers.Text;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -173,6 +173,7 @@ namespace MozUtil
             int StunTimeout = StunStartTimeout;
             while (true)
             {
+                if (CTS.IsCancellationRequested) return false;
                 stunClient = new UdpClient(AddressFamily.InterNetwork);
                 if (LocalMode)
                 {

@@ -12,11 +12,18 @@ namespace Moz_Avalonia.Android;
 [Service(Name = "com.duckyvpn.mozvpn.MozVpnService", Permission = "android.permission.BIND_VPN_SERVICE", Exported = false, ForegroundServiceType = global::Android.Content.PM.ForegroundService.TypeSpecialUse)]
 public class MozVpnService : VpnService, IBoxPlatformInterface, INB4AInterface
 {
+    private static MozVpnService? _instance;
     private const string ChannelId = "mozvpn_service_channel";
     private const int NotificationId = 1001;
 
     private ParcelFileDescriptor? _tunInterface;
     private BoxInstance? _singBoxInstance;
+
+    public override void OnCreate()
+    {
+        base.OnCreate();
+        _instance = this;
+    }
 
     public override StartCommandResult OnStartCommand(Intent? intent, StartCommandFlags flags, int startId)
     {
@@ -70,11 +77,11 @@ public class MozVpnService : VpnService, IBoxPlatformInterface, INB4AInterface
         }
     }
 
-    private Notification BuildNotification()
+    private Notification BuildNotification(string status = "Device traffic is tunneled through MozVPN.")
     {
         var builder = new Notification.Builder(this, ChannelId)
             .SetContentTitle("MozVPN Tunnel Active")
-            .SetContentText("Device traffic is tunneled through MozVPN.")
+            .SetContentText(status)
             .SetSmallIcon(Resource.Drawable.icon)
             .SetOngoing(true)
             .SetCategory(Notification.CategoryService);
@@ -178,8 +185,20 @@ public class MozVpnService : VpnService, IBoxPlatformInterface, INB4AInterface
 
     public override void OnDestroy()
     {
+        _instance = null;
         StopVpn();
         base.OnDestroy();
+    }
+
+    public static void UpdateNotificationStatus(string status)
+    {
+        _instance?.UpdateNotificationText(status);
+    }
+
+    private void UpdateNotificationText(string status)
+    {
+        var manager = (NotificationManager)GetSystemService(NotificationService)!;
+        manager.Notify(NotificationId, BuildNotification(status));
     }
 
     // --- IBoxPlatformInterface implementation ---

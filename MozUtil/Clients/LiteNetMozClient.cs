@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
@@ -71,6 +71,7 @@ namespace MozUtil.Clients
 
         private int _HttpListenPort;
         public int HttpListenPort { get { return _HttpListenPort; } }
+        private bool _isDisposing;
 
         private int _MtSrvPort;
 
@@ -135,6 +136,7 @@ namespace MozUtil.Clients
         }
         public void Dispose()
         {
+            _isDisposing = true;
             Task.Run(() =>
             {
                 for (int i = 0; i < LiteNetManager.ConnectedPeersCount; i++) LiteNetManager.GetPeerById(i).Disconnect();
@@ -404,6 +406,7 @@ namespace MozUtil.Clients
         public void OnPeerDisconnected(NetPeer peer, DisconnectInfo disconnectInfo)
         {
             if (ReferenceEquals(LiteNetManager, null)) return;
+            if (_isDisposing) return;
             if (Interlocked.CompareExchange(ref _protocolIncompatible, 0, 0) != 0)
             {
                 StatusUpdate?.Invoke(this, StatusResult.UDPDisconnected);
