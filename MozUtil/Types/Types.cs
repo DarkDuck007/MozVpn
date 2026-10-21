@@ -1,4 +1,4 @@
-﻿using System.Net.Sockets;
+using System.Net.Sockets;
 using System.Net;
 using System;
 
@@ -41,14 +41,16 @@ namespace MozUtil.Types
    public class CustomPipeInformation
    {
       public CustomPipeInformation() { }
+      public ushort ConnectionID { get; set; }
       public IPAddress? IPAddress { get; set; }
       public int DestinationPort { get; set; }
       public byte Channel { get; set; }
       public ProtocolType SockProto { get; set; }
       public LiteNetLib.DeliveryMethod DeliveryReliability { get; set; }
 
-      public CustomPipeInformation(IPAddress DestinationIPAddress, int destinationPort, byte ChannelNumber, ProtocolType SocketProtocolType, LiteNetLib.DeliveryMethod Reliability)
+      public CustomPipeInformation(ushort connectionId, IPAddress DestinationIPAddress, int destinationPort, byte ChannelNumber, ProtocolType SocketProtocolType, LiteNetLib.DeliveryMethod Reliability)
       {
+         ConnectionID = connectionId;
          IPAddress = DestinationIPAddress;
          DestinationPort = destinationPort;
          Channel = ChannelNumber;

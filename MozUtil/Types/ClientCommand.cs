@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
@@ -78,9 +78,9 @@ namespace MozUtil.Types
       }
       public static byte[] BuildCustomPipeCommand(CustomPipeInformation PipeInfo)
       {
-         return BuildCustomPipeCommand(PipeInfo.IPAddress, PipeInfo.DestinationPort, PipeInfo.Channel, PipeInfo.SockProto, PipeInfo.DeliveryReliability);
+         return BuildCustomPipeCommand(PipeInfo.ConnectionID, PipeInfo.IPAddress, PipeInfo.DestinationPort, PipeInfo.Channel, PipeInfo.SockProto, PipeInfo.DeliveryReliability);
       }
-      public static byte[] BuildCustomPipeCommand(IPAddress DestinationIPAddress, int destinationPort, byte ChannelNumber, ProtocolType SocketProtocolType, LiteNetLib.DeliveryMethod Reliability)
+      public static byte[] BuildCustomPipeCommand(ushort connectionId, IPAddress DestinationIPAddress, int destinationPort, byte ChannelNumber, ProtocolType SocketProtocolType, LiteNetLib.DeliveryMethod Reliability)
       {
          if (SocketProtocolType == ProtocolType.Tcp && Reliability != LiteNetLib.DeliveryMethod.ReliableOrdered)
             throw new Exception("Unreliable TCP is on another level... can't let you do it for several reasons.");
@@ -91,6 +91,9 @@ namespace MozUtil.Types
             CommandStream.Write(EmptyBytes);
             byte[] CommandBytes = BitConverter.GetBytes((ushort)ClientCommands.OpenEndToEndCustomPipe);
             CommandStream.Write(CommandBytes);
+
+            byte[] ConnectionIDBytes = BitConverter.GetBytes(connectionId);
+            CommandStream.Write(ConnectionIDBytes);
 
             byte[] AddressFamilyBytes = BitConverter.GetBytes((int)DestinationIPAddress.AddressFamily);
             CommandStream.Write(AddressFamilyBytes);
@@ -111,6 +114,9 @@ namespace MozUtil.Types
       {
          CustomPipeInformation PipeInfo = new CustomPipeInformation();
          int Position = Offset;
+
+         PipeInfo.ConnectionID = BitConverter.ToUInt16(PipeInfoBytes, Position);
+         Position += 2;
 
          AddressFamily IPAddressFamily = (AddressFamily)BitConverter.ToInt32(PipeInfoBytes, Position);
 

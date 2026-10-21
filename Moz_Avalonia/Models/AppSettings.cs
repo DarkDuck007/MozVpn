@@ -25,6 +25,7 @@ public sealed class AppSettings
     public List<string> CustomHttpProxies { get; set; } = [];
     public List<ConnectionProfile> SavedProfiles { get; set; } = [];
     public List<string> SuccessfulStuns { get; set; } = [];
+    public bool? IsSimpleMode { get; set; }
 }
 
 public sealed class ConnectionProfile
@@ -41,4 +42,8 @@ public sealed class ConnectionProfile
     public bool AggressivePortScan { get; set; }
     public bool SkipStun { get; set; }
     public bool AutoConnectAtLaunch { get; set; }
+    public string? ServerAlias { get; set; }
+    public string? StunSpoofLocalAddr { get; set; }
+    public string? StunSpoofPublicAddr { get; set; }
+    public string? StunSpoofNatType { get; set; }
 }

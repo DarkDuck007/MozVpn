@@ -148,6 +148,15 @@ public partial class MainViewModel : ViewModelBase, IAsyncDisposable
         AggressivePortScan = _settings.AggressivePortScan;
         SkipStun = _settings.SkipStun;
         IsEditorOpen = _settings.IsEditorOpen;
+        if (_settings.IsSimpleMode.HasValue)
+        {
+            IsSimpleMode = _settings.IsSimpleMode.Value;
+        }
+        else
+        {
+            IsSimpleMode = OperatingSystem.IsAndroid();
+            _settings.IsSimpleMode = IsSimpleMode;
+        }
         StunTestBatchSize = Math.Clamp(_settings.StunTestBatchSize, 1, 64);
         StunTestTimeoutMs = Math.Clamp(_settings.StunTestTimeoutMs, 250, 30000);
         MergeOptions(ServerOptions, _settings.CustomServers);
@@ -972,6 +981,7 @@ public partial class MainViewModel : ViewModelBase, IAsyncDisposable
         _settings.SkipStun = SkipStun;
         _settings.AutoConnectSavedProfiles = false;
         _settings.IsEditorOpen = IsEditorOpen;
+        _settings.IsSimpleMode = IsSimpleMode;
         _settings.StunTestBatchSize = Math.Clamp(StunTestBatchSize, 1, 64);
         _settings.StunTestTimeoutMs = Math.Clamp(StunTestTimeoutMs, 250, 30000);
         _settings.PreferredBrowser = SelectedBrowser?.Executable ?? string.Empty;
@@ -1095,6 +1105,587 @@ public partial class MainViewModel : ViewModelBase, IAsyncDisposable
     private static bool LooksLikeEndpoint(string value) => value.Trim().LastIndexOf(':') > 0 && ushort.TryParse(value[(value.LastIndexOf(':') + 1)..], out var port) && port > 0;
     private static void AddUnique(ObservableCollection<string> target, string value) { if (!target.Contains(value, StringComparer.OrdinalIgnoreCase)) target.Add(value); }
     private static void MergeOptions(ObservableCollection<string> target, IEnumerable<string> values) { foreach (var value in values) AddUnique(target, value); }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(UiModeText))]
+    private bool _isSimpleMode;
+
+    public string UiModeText => IsSimpleMode ? "Simple" : "Advanced";
+
+    [ObservableProperty]
+    private bool _isSimpleConnecting;
+
+    [ObservableProperty]
+    private string _simpleStatusMessage = "Ready";
+
+    public bool SimpleCanConnect => !IsSimpleConnecting;
+
+    public string SimpleButtonText
+    {
+        get
+        {
+            if (IsVpnActive) return "DISCONNECT";
+            if (IsSimpleConnecting) return "CONNECTING...";
+            return "CONNECT";
+        }
+    }
+
+    public string SimpleButtonBackground
+    {
+        get
+        {
+            if (IsVpnActive) return "#1F3D24"; // Soft green
+            if (IsSimpleConnecting) return "#3D2B1F"; // Soft orange
+            return "#122A3F"; // Soft blue/dark
+        }
+    }
+
+    public string SimpleButtonBorder
+    {
+        get
+        {
+            if (IsVpnActive) return "#34C759"; // Bright green
+            if (IsSimpleConnecting) return "#FF9500"; // Bright orange
+            return "#007AFF"; // Bright blue
+        }
+    }
+
+    partial void OnIsVpnActiveChanged(bool value)
+    {
+        OnPropertyChanged(nameof(SimpleButtonText));
+        OnPropertyChanged(nameof(SimpleButtonBackground));
+        OnPropertyChanged(nameof(SimpleButtonBorder));
+    }
+
+    partial void OnIsSimpleConnectingChanged(bool value)
+    {
+        OnPropertyChanged(nameof(SimpleButtonText));
+        OnPropertyChanged(nameof(SimpleButtonBackground));
+        OnPropertyChanged(nameof(SimpleButtonBorder));
+        OnPropertyChanged(nameof(SimpleCanConnect));
+    }
+
+    partial void OnServerAddressChanged(string value)
+    {
+        if (!_initialized || string.IsNullOrWhiteSpace(value)) return;
+        if (EditingConnection is not null) return;
+
+        _ = Task.Run(async () =>
+        {
+            string? alias = null;
+            try
+            {
+                using var client = new System.Net.Http.HttpClient();
+                client.Timeout = TimeSpan.FromMilliseconds(1500);
+                var url = value.Trim().TrimEnd('/') + "/alias";
+                var response = await client.GetAsync(url);
+                if (response.IsSuccessStatusCode)
+                {
+                    alias = (await response.Content.ReadAsStringAsync()).Trim();
+                }
+            }
+            catch {}
+
+            await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                if (EditingConnection is null)
+                {
+                    if (!string.IsNullOrWhiteSpace(alias))
+                    {
+                        ProfileName = alias;
+                    }
+                    else
+                    {
+                        ProfileName = "Connection";
+                    }
+                }
+            });
+        });
+    }
+
+    [RelayCommand]
+    private async Task ToggleUiModeAsync()
+    {
+        IsSimpleMode = !IsSimpleMode;
+        await SaveAsync();
+    }
+
+    [RelayCommand]
+    private async Task ToggleSimpleConnectAsync()
+    {
+        if (IsVpnActive)
+        {
+            SimpleStatusMessage = "Disconnecting...";
+            if (App.VpnManager != null && App.VpnManager.IsVpnRunning)
+            {
+                App.VpnManager.StopVpn();
+            }
+            foreach (var conn in Connections)
+            {
+                if (conn.IsConnected)
+                {
+                    await conn.DisconnectCommand.ExecuteAsync(null);
+                }
+            }
+            IsVpnActive = false;
+            SelectedConnection = null;
+            SimpleStatusMessage = "Disconnected";
+            return;
+        }
+
+        IsSimpleConnecting = true;
+        SimpleStatusMessage = "Resolving STUN...";
+        try
+        {
+            string? activeStun = null;
+            lock (SuccessfulStuns)
+            {
+                activeStun = SuccessfulStuns.LastOrDefault();
+            }
+
+            var stunTestCts = new CancellationTokenSource();
+            Task<string>? stunTask = null;
+
+            if (string.IsNullOrEmpty(activeStun))
+            {
+                SimpleStatusMessage = "Finding working STUN server...";
+                var candidates = StunOptions.Where(StunProbeService.IsCandidate).ToArray();
+                if (candidates.Length == 0)
+                    throw new InvalidOperationException("No STUN servers configured.");
+
+                var tcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+                var timeout = Math.Clamp(StunTestTimeoutMs, 250, 30000);
+                var batchSize = Math.Clamp(StunTestBatchSize, 1, 64);
+
+                _ = Task.Run(async () =>
+                {
+                    using var gate = new SemaphoreSlim(batchSize);
+                    var tasks = candidates.Select(async server =>
+                    {
+                        await gate.WaitAsync();
+                        try
+                        {
+                            var outcome = await _stunProbe.ProbeAsync(server, timeout, stunTestCts.Token);
+                            if (outcome.Success)
+                            {
+                                await AddSuccessfulStunAsync(server);
+                                tcs.TrySetResult(server);
+                            }
+                        }
+                        catch {}
+                        finally { gate.Release(); }
+                    }).ToArray();
+
+                    await Task.WhenAll(tasks);
+                    tcs.TrySetResult(string.Empty);
+                });
+
+                activeStun = await tcs.Task;
+                if (string.IsNullOrEmpty(activeStun))
+                {
+                    throw new InvalidOperationException("No responding STUN servers found. Check your internet connection.");
+                }
+            }
+            else
+            {
+                var candidates = StunOptions.Where(StunProbeService.IsCandidate).ToArray();
+                if (candidates.Length > 0)
+                {
+                    var tcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+                    var timeout = Math.Clamp(StunTestTimeoutMs, 250, 30000);
+                    var batchSize = Math.Clamp(StunTestBatchSize, 1, 64);
+                    _ = Task.Run(async () =>
+                    {
+                        using var gate = new SemaphoreSlim(batchSize);
+                        var tasks = candidates.Select(async server =>
+                        {
+                            await gate.WaitAsync();
+                            try
+                            {
+                                var outcome = await _stunProbe.ProbeAsync(server, timeout, stunTestCts.Token);
+                                if (outcome.Success)
+                                {
+                                    await AddSuccessfulStunAsync(server);
+                                    tcs.TrySetResult(server);
+                                }
+                            }
+                            catch {}
+                            finally { gate.Release(); }
+                        }).ToArray();
+
+                        await Task.WhenAll(tasks);
+                        tcs.TrySetResult(string.Empty);
+                    });
+                    
+                    stunTask = tcs.Task;
+                }
+            }
+
+            var activeStunLocal = activeStun;
+
+            if (stunTask != null)
+            {
+                _ = Task.Run(async () =>
+                {
+                    var updatedStun = await stunTask;
+                    if (!string.IsNullOrEmpty(updatedStun))
+                    {
+                        activeStunLocal = updatedStun;
+                        MozUtil.Logger.Log($"Simple Mode updated active STUN to: {updatedStun}");
+                    }
+                });
+            }
+
+            // ----------------------------------------------------
+            // Single STUN Query Procedure
+            // ----------------------------------------------------
+            SimpleStatusMessage = "Querying STUN server...";
+            MozUtil.Logger.Log($"[SimpleMode] Performing STUN query on {activeStunLocal}...");
+
+            string? spoofL = null;
+            string? spoofP = null;
+            string? spoofN = null;
+
+            try
+            {
+                using var stunClient = new System.Net.Sockets.UdpClient(System.Net.Sockets.AddressFamily.InterNetwork);
+                var timeout = Math.Clamp(StunTestTimeoutMs, 250, 30000);
+                var stunQueryTask = Task.Run(() => MozUtil.NatUtils.MozStun.GetStunResult(stunClient.Client, activeStunLocal, timeout));
+
+                if (await Task.WhenAny(stunQueryTask, Task.Delay(timeout)) == stunQueryTask)
+                {
+                    var result = await stunQueryTask;
+                    if (result.QueryError == STUN.STUNQueryError.Success)
+                    {
+                        spoofL = result.LocalEndPoint?.Address?.ToString();
+                        spoofP = result.PublicEndPoint?.Address?.ToString();
+                        spoofN = result.NATType.ToString();
+                        MozUtil.Logger.Log($"[SimpleMode] Pre-resolved STUN query succeeded. Local: {spoofL}, Public: {spoofP}, NATType: {spoofN}");
+                    }
+                    else
+                    {
+                        MozUtil.Logger.Log($"[SimpleMode] STUN query error: {result.QueryError}");
+                    }
+                }
+                else
+                {
+                    MozUtil.Logger.Log("[SimpleMode] STUN query timed out.");
+                }
+            }
+            catch (Exception ex)
+            {
+                MozUtil.Logger.Log($"[SimpleMode] STUN query exception: {ex.Message}");
+            }
+
+            SimpleStatusMessage = "Testing server locations...";
+            MozUtil.Logger.Log("[SimpleMode] Beginning concurrent server connection tests...");
+            var servers = ServerOptions.ToArray();
+            if (servers.Length == 0)
+            {
+                MozUtil.Logger.Log("[SimpleMode] Error: No servers configured in options.");
+                throw new InvalidOperationException("No servers configured.");
+            }
+
+            ConnectionViewModel? successfulConn = null;
+
+            // Batch size is 3 to run concurrently
+            for (int i = 0; i < servers.Length; i += 3)
+            {
+                if (IsVpnActive || !IsSimpleConnecting)
+                {
+                    MozUtil.Logger.Log($"[SimpleMode] Queue execution cancelled or disconnected. IsVpnActive={IsVpnActive}, IsSimpleConnecting={IsSimpleConnecting}");
+                    break;
+                }
+
+                var batchServers = servers.Skip(i).Take(3).ToList();
+                SimpleStatusMessage = $"Testing batch: {string.Join(", ", batchServers.Select(s => s.Split('/').Skip(2).FirstOrDefault() ?? s))}";
+                MozUtil.Logger.Log($"[SimpleMode] Processing batch {i / 3 + 1}: {string.Join(", ", batchServers)}");
+
+                if (batchServers.Count == 0) break;
+
+                // Launch all servers in the batch concurrently, bypassing STUN query overhead by reusing pre-resolved results
+                var batchTasks = batchServers.Select(async server =>
+                {
+                    MozUtil.Logger.Log($"[SimpleMode] Creating connection profile for: {server}");
+                    var profile = new ConnectionProfile
+                    {
+                        Name = "Simple Connection Temp",
+                        ServerAddress = server,
+                        StunServer = activeStunLocal,
+                        Transport = SelectedTransport,
+                        MaxChannels = MaxChannels,
+                        UseHttpProxy = UseHttpProxy,
+                        ForceSymmetric = ForceSymmetric,
+                        AggressivePortScan = AggressivePortScan,
+                        
+                        // Spoof STUN results to skip testing
+                        SkipStun = !string.IsNullOrEmpty(spoofL),
+                        StunSpoofLocalAddr = spoofL,
+                        StunSpoofPublicAddr = spoofP,
+                        StunSpoofNatType = spoofN
+                    };
+
+                    ConnectionViewModel? tempConn = null;
+                    await Dispatcher.UIThread.InvokeAsync(() => {
+                        tempConn = AddProfile(profile);
+                    });
+
+                    if (tempConn != null)
+                    {
+                        MozUtil.Logger.Log($"[SimpleMode] Starting connection handshake for: {server} (SkipStun={profile.SkipStun})");
+                        _ = tempConn.ConnectCommand.ExecuteAsync(null);
+                        
+                        var ok = await WaitForConnectionResultAsync(tempConn, 12000);
+                        MozUtil.Logger.Log($"[SimpleMode] Connection handshake result for {server}: {ok}");
+                        return (Connection: tempConn, Success: ok);
+                    }
+
+                    return (Connection: null!, Success: false);
+                }).ToArray();
+
+                var results = await Task.WhenAll(batchTasks);
+                var winner = results.FirstOrDefault(r => r.Success && r.Connection != null).Connection;
+
+                if (winner != null)
+                {
+                    successfulConn = winner;
+                    MozUtil.Logger.Log($"[SimpleMode] Successful winner connected: {winner.ServerAddress}");
+                    
+                    // Clean up/disconnect all other connection attempts in this batch
+                    foreach (var res in results)
+                    {
+                        if (res.Connection != null && res.Connection != winner)
+                        {
+                            var connToAbort = res.Connection;
+                            MozUtil.Logger.Log($"[SimpleMode] Aborting non-winning concurrent connection: {connToAbort.ServerAddress}");
+                            _ = Task.Run(async () =>
+                            {
+                                try
+                                {
+                                    await connToAbort.DisconnectCommand.ExecuteAsync(null);
+                                    await Dispatcher.UIThread.InvokeAsync(async () =>
+                                    {
+                                        await connToAbort.DisposeAsync();
+                                        Connections.Remove(connToAbort);
+                                    });
+                                }
+                                catch (Exception ex)
+                                {
+                                    MozUtil.Logger.Log($"[SimpleMode] Exception aborting {connToAbort.ServerAddress}: {ex.Message}");
+                                }
+                            });
+                        }
+                    }
+                    break;
+                }
+                else
+                {
+                    MozUtil.Logger.Log("[SimpleMode] All connection attempts in this batch failed. Cleaning up profiles.");
+                    // Clean up failed connections in this batch
+                    foreach (var res in results)
+                    {
+                        if (res.Connection != null)
+                        {
+                            var connToClean = res.Connection;
+                            await Dispatcher.UIThread.InvokeAsync(async () =>
+                            {
+                                await connToClean.DisposeAsync();
+                                Connections.Remove(connToClean);
+                            });
+                        }
+                    }
+                }
+            }
+
+            if (successfulConn == null)
+            {
+                MozUtil.Logger.Log("[SimpleMode] Simple connection failed: No VPN servers responded.");
+                throw new InvalidOperationException("No responsive VPN servers could establish a connection.");
+            }
+
+            SimpleStatusMessage = $"Enabling VPN tunnel for {successfulConn.ServerAddress}...";
+            MozUtil.Logger.Log($"[SimpleMode] Connection established. Activating local VPN manager proxy binding.");
+
+            if (App.VpnManager != null)
+            {
+                App.VpnManager.StartVpn(successfulConn.Name, successfulConn.SocksPort);
+                IsVpnActive = true;
+                successfulConn.RefreshVpnButtonText();
+            }
+
+            SelectedConnection = successfulConn;
+
+            SimpleStatusMessage = "Resolving location...";
+            MozUtil.Logger.Log("[SimpleMode] Starting country location lookup...");
+
+            string? aliasName = null;
+            try
+            {
+                using var client = new System.Net.Http.HttpClient();
+                client.Timeout = TimeSpan.FromMilliseconds(1500);
+                var response = await client.GetAsync(successfulConn.ServerAddress.TrimEnd('/') + "/alias");
+                if (response.IsSuccessStatusCode)
+                {
+                    aliasName = (await response.Content.ReadAsStringAsync()).Trim();
+                    MozUtil.Logger.Log($"[SimpleMode] Server alias resolved over HTTP endpoint: {aliasName}");
+                }
+            }
+            catch (Exception ex)
+            {
+                MozUtil.Logger.Log($"[SimpleMode] Server alias query failed: {ex.Message}");
+            }
+
+            if (string.IsNullOrWhiteSpace(aliasName))
+            {
+                SimpleStatusMessage = "Lookup country via proxy...";
+                MozUtil.Logger.Log("[SimpleMode] Performing SOCKS proxy IP geolocation country lookup...");
+                aliasName = await PerformIpLookupAsync(successfulConn.HttpPort);
+            }
+
+            if (!string.IsNullOrWhiteSpace(aliasName))
+            {
+                MozUtil.Logger.Log($"[SimpleMode] Final server name and alias resolved: {aliasName}");
+                successfulConn.Profile.ServerAlias = aliasName;
+                successfulConn.Profile.Name = aliasName;
+                successfulConn.Name = aliasName;
+                await SaveAsync();
+                SimpleStatusMessage = $"Connected: {aliasName}";
+            }
+            else
+            {
+                MozUtil.Logger.Log("[SimpleMode] Server alias and country lookup failed. Displaying location unknown.");
+                SimpleStatusMessage = "Connected (Location Unknown)";
+            }
+        }
+        catch (Exception ex)
+        {
+            MozUtil.Logger.Log($"[SimpleMode] Exception in ToggleSimpleConnectAsync: {ex.Message}");
+            SimpleStatusMessage = $"Error: {ex.Message}";
+            await ShowMessageAsync("Simple Connection Failed", ex.Message);
+        }
+        finally
+        {
+            IsSimpleConnecting = false;
+        }
+    }
+
+    private async Task<bool> WaitForConnectionResultAsync(ConnectionViewModel connection, int timeoutMs)
+    {
+        var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        
+        System.ComponentModel.PropertyChangedEventHandler handler = (s, e) =>
+        {
+            if (e.PropertyName == nameof(ConnectionViewModel.IsConnected))
+            {
+                MozUtil.Logger.Log($"[SimpleMode] WaitForConnectionResult PropertyChanged: IsConnected={connection.IsConnected} for {connection.ServerAddress}");
+                if (connection.IsConnected)
+                {
+                    tcs.TrySetResult(true);
+                }
+            }
+            else if (e.PropertyName == nameof(ConnectionViewModel.UdpStatus))
+            {
+                MozUtil.Logger.Log($"[SimpleMode] WaitForConnectionResult PropertyChanged: UdpStatus='{connection.UdpStatus}' for {connection.ServerAddress}");
+                if (connection.UdpStatus == "Connection failed" || connection.UdpStatus == "Disconnected")
+                {
+                    tcs.TrySetResult(false);
+                }
+            }
+        };
+
+        connection.PropertyChanged += handler;
+        
+        if (connection.IsConnected)
+        {
+            connection.PropertyChanged -= handler;
+            MozUtil.Logger.Log($"[SimpleMode] WaitForConnectionResult: Already connected to {connection.ServerAddress}");
+            return true;
+        }
+        if (connection.UdpStatus == "Connection failed")
+        {
+            connection.PropertyChanged -= handler;
+            MozUtil.Logger.Log($"[SimpleMode] WaitForConnectionResult: Connection already failed to {connection.ServerAddress}");
+            return false;
+        }
+
+        var cts = new CancellationTokenSource(timeoutMs);
+        cts.Token.Register(() => {
+            MozUtil.Logger.Log($"[SimpleMode] WaitForConnectionResult: Timeout hit ({timeoutMs}ms) for {connection.ServerAddress}");
+            tcs.TrySetResult(false);
+        });
+
+        try
+        {
+            return await tcs.Task;
+        }
+        finally
+        {
+            connection.PropertyChanged -= handler;
+            cts.Dispose();
+        }
+    }
+
+    private async Task WaitForStunResolutionAsync(ConnectionViewModel connection, int timeoutMs)
+    {
+        var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        
+        System.ComponentModel.PropertyChangedEventHandler handler = (s, e) =>
+        {
+            if (e.PropertyName == nameof(ConnectionViewModel.UdpStatus))
+            {
+                if (connection.UdpStatus != "Testing STUN…" && connection.UdpStatus != "Disconnected")
+                {
+                    tcs.TrySetResult(true);
+                }
+            }
+        };
+
+        connection.PropertyChanged += handler;
+        
+        if (connection.UdpStatus != "Testing STUN…" && connection.UdpStatus != "Disconnected")
+        {
+            connection.PropertyChanged -= handler;
+            return;
+        }
+
+        var cts = new CancellationTokenSource(timeoutMs);
+        cts.Token.Register(() => tcs.TrySetResult(false));
+
+        try
+        {
+            await tcs.Task;
+        }
+        finally
+        {
+            connection.PropertyChanged -= handler;
+            cts.Dispose();
+        }
+    }
+
+    private async Task<string?> PerformIpLookupAsync(int httpPort)
+    {
+        try
+        {
+            var handler = new System.Net.Http.HttpClientHandler
+            {
+                Proxy = new System.Net.WebProxy($"http://127.0.0.1:{httpPort}"),
+                UseProxy = true
+            };
+            using var client = new System.Net.Http.HttpClient(handler);
+            client.Timeout = TimeSpan.FromMilliseconds(4000);
+            var json = await client.GetStringAsync("https://ipapi.co/json/");
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            if (doc.RootElement.TryGetProperty("country_name", out var countryProp))
+            {
+                return countryProp.GetString();
+            }
+        }
+        catch (Exception ex)
+        {
+            MozUtil.Logger.Log($"IP Geolocation lookup failed: {ex.Message}");
+        }
+        return null;
+    }
 
     public async ValueTask DisposeAsync()
     {

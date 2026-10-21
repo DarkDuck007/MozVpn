@@ -26,13 +26,13 @@ dotnet run --project Moz_Avalonia/Moz_Avalonia.csproj -c Release
 Publish a self-contained, single-file Linux x64 executable:
 
 ```sh
-dotnet publish Moz_Avalonia/Moz_Avalonia.csproj -c Release -r linux-x64 -f net10.0 --self-contained true -p:PublishSingleFile=true -p:PublishReadyToRun=true -o artifacts/Moz_Avalonia/linux-x64
+dotnet publish Moz_Avalonia/Moz_Avalonia.csproj -c Release -r linux-x64 -f net10.0 --self-contained true -p:PublishSingleFile=true -o artifacts/Moz_Avalonia/linux-x64
 ```
 
 Publish a self-contained, single-file Windows x64 executable:
 
 ```sh
-dotnet publish Moz_Avalonia/Moz_Avalonia.csproj -c Release -r win-x64 -f net10.0 --self-contained true -p:PublishSingleFile=true -p:PublishReadyToRun=true -o artifacts/Moz_Avalonia/win-x64
+dotnet publish Moz_Avalonia/Moz_Avalonia.csproj -c Release -r win-x64 -f net10.0 --self-contained true -p:PublishSingleFile=true -o artifacts/Moz_Avalonia/win-x64
 ```
 
 Publish Android App Bundle (AAB for Google Play Store) and APK (for sideloading):

@@ -17,18 +17,25 @@
     <!-- Top Header -->
     <Border Grid.Row="0" Background="#101D29" BorderBrush="#223548" BorderThickness="0,0,0,1" Padding="14,10">
       <Grid ColumnDefinitions="*,Auto">
-        <StackPanel Orientation="Horizontal" Spacing="8">
-          <Border Width="28" Height="28" CornerRadius="4" Background="#000000" ClipToBounds="True">
-            <Image Source="/Assets/avalonia-logo.ico" Stretch="Uniform" />
+        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+          <Button Command="{Binding ToggleUiModeCommand}" Background="Transparent" BorderThickness="0" Padding="0" Cursor="Hand">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <Border Width="28" Height="28" CornerRadius="4" Background="#000000" ClipToBounds="True">
+                <Image Source="/Assets/avalonia-logo.ico" Stretch="Uniform" />
+              </Border>
+              <TextBlock Text="MOZ VPN" FontWeight="Bold" FontSize="16" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
+          <Border Background="#223548" CornerRadius="3" Padding="5,2" VerticalAlignment="Center" Margin="4,0,0,0">
+            <TextBlock Text="{Binding UiModeText}" FontSize="10" FontWeight="SemiBold" Foreground="#4CC9F0" />
           </Border>
-          <TextBlock Text="MOZ VPN" FontWeight="Bold" FontSize="16" VerticalAlignment="Center" />
         </StackPanel>
         <TextBlock Grid.Column="1" Text="{Binding StatusMessage}" FontSize="12" Foreground="#B8CAD9" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="160" />
       </Grid>
     </Border>
 
     <!-- Bottom Tab Control for Phones -->
-    <TabControl Grid.Row="1" TabStripPlacement="Bottom" Padding="0" SelectedIndex="{Binding SelectedTab, Mode=TwoWay}">
+    <TabControl Grid.Row="1" TabStripPlacement="Bottom" Padding="0" SelectedIndex="{Binding SelectedTab, Mode=TwoWay}" IsVisible="{Binding !IsSimpleMode}">
       
       <!-- Tab 1: Profiles -->
       <TabItem Header="Profiles">
@@ -179,18 +186,21 @@
                       </TabItem>
                       <TabItem Header="Relays">
                         <Grid Margin="0,6,0,0" RowDefinitions="Auto,*">
-                          <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
+                          <Grid ColumnDefinitions="*,60,60,Auto" ColumnSpacing="6">
                             <TextBox Text="{Binding RelayEndpoint}" PlaceholderText="host:port" Padding="6" FontSize="12"/>
-                            <Button Grid.Column="1" Content="Create" Command="{Binding CreateRelayCommand}" Padding="8,6" FontSize="12"/>
+                            <TextBox Grid.Column="1" Text="{Binding RelayListenPort}" PlaceholderText="port" Padding="6" FontSize="12"/>
+                            <ComboBox Grid.Column="2" ItemsSource="{Binding RelayTypes}" SelectedItem="{Binding RelayTypeSelection}" FontSize="10" Padding="4"/>
+                            <Button Grid.Column="3" Content="Create" Command="{Binding CreateRelayCommand}" Padding="8,6" FontSize="12"/>
                           </Grid>
                           <ItemsControl Grid.Row="1" Margin="0,6,0,0" ItemsSource="{Binding Relays}">
                             <ItemsControl.ItemTemplate>
                               <DataTemplate x:DataType="moz:SubTunInfo">
                                 <Border Classes="card" Padding="8" Margin="0,0,0,4">
-                                  <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6">
+                                  <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="6">
                                     <TextBlock Text="{Binding DestinationHostName}" TextTrimming="CharacterEllipsis" FontSize="11" VerticalAlignment="Center"/>
-                                    <TextBlock Grid.Column="1" Text="{Binding Status}" FontSize="11" VerticalAlignment="Center"/>
-                                    <Button Grid.Column="2" Content="Retry" Command="{ReflectionBinding $parent[ItemsControl].DataContext.ReconnectRelayCommand}" CommandParameter="{Binding}" Padding="4" FontSize="10"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding Type}" FontSize="11" VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Column="2" Text="{Binding Status}" FontSize="11" VerticalAlignment="Center"/>
+                                    <Button Grid.Column="3" Content="Retry" Command="{ReflectionBinding $parent[ItemsControl].DataContext.ReconnectRelayCommand}" CommandParameter="{Binding}" Padding="4" FontSize="10"/>
                                   </Grid>
                                 </Border>
                               </DataTemplate>
@@ -301,6 +311,44 @@
         </Grid>
       </TabItem>
     </TabControl>
+
+    <!-- Simple Mode UI -->
+    <Grid Grid.Row="1" IsVisible="{Binding IsSimpleMode}" RowDefinitions="*,Auto,*" Margin="16">
+      <StackPanel Grid.Row="0" VerticalAlignment="Bottom" HorizontalAlignment="Center" Spacing="8">
+        <TextBlock Text="Simple Connection" FontSize="22" FontWeight="Bold" HorizontalAlignment="Center" Foreground="White" />
+        <TextBlock Text="{Binding SimpleStatusMessage}" FontSize="13" Foreground="#B8CAD9" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" MaxWidth="320" />
+      </StackPanel>
+
+      <!-- Big Connect Button -->
+      <Grid Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,20">
+        <Button Width="150" Height="150" CornerRadius="75" 
+                Command="{Binding ToggleSimpleConnectCommand}"
+                IsEnabled="{Binding SimpleCanConnect}"
+                Background="{Binding SimpleButtonBackground}"
+                BorderBrush="{Binding SimpleButtonBorder}"
+                BorderThickness="3"
+                HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
+                Cursor="Hand">
+          <Button.Styles>
+            <Style Selector="Button">
+              <Setter Property="Transitions">
+                <Transitions>
+                  <BrushTransition Property="Background" Duration="0:0:0.25" />
+                  <BrushTransition Property="BorderBrush" Duration="0:0:0.25" />
+                </Transitions>
+              </Setter>
+            </Style>
+          </Button.Styles>
+          <StackPanel Spacing="8" HorizontalAlignment="Center" VerticalAlignment="Center">
+            <TextBlock Text="{Binding SimpleButtonText}" FontWeight="Bold" FontSize="16" Foreground="White" HorizontalAlignment="Center" />
+          </StackPanel>
+        </Button>
+      </Grid>
+
+      <StackPanel Grid.Row="2" VerticalAlignment="Top" HorizontalAlignment="Center" Margin="0,10,0,0">
+        <TextBlock Text="Traffic is encrypted and routed locally via SOCKS/HTTP proxy core." Classes="muted" FontSize="11" TextAlignment="Center" TextWrapping="Wrap" MaxWidth="260" />
+      </StackPanel>
+    </Grid>
 
     <!-- Footer -->
     <Border Grid.Row="2" Background="#101D29" BorderBrush="#223548" BorderThickness="0,1,0,0" Padding="10,6">

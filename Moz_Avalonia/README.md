@@ -34,9 +34,9 @@ dotnet run --project Moz_Avalonia/Moz_Avalonia.csproj -c Release
 Publish self-contained, single-file x64 artifacts with:
 
 ```sh
-dotnet publish Moz_Avalonia/Moz_Avalonia.csproj -c Release -r linux-x64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=false -p:PublishAot=false -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=None -p:DebugSymbols=false -o artifacts/Moz_Avalonia/linux-x64
+dotnet publish Moz_Avalonia/Moz_Avalonia.csproj -c Release -r linux-x64 -f net10.0 --self-contained true -p:PublishSingleFile=true -o artifacts/Moz_Avalonia/linux-x64
 
-dotnet publish Moz_Avalonia/Moz_Avalonia.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=false -p:PublishAot=false -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=None -p:DebugSymbols=false -o artifacts/Moz_Avalonia/win-x64
+dotnet publish Moz_Avalonia/Moz_Avalonia.csproj -c Release -r win-x64 -f net10.0 --self-contained true -p:PublishSingleFile=true -o artifacts/Moz_Avalonia/win-x64
 ```
 
 These produce `artifacts/Moz_Avalonia/linux-x64/Moz_Avalonia` and `artifacts/Moz_Avalonia/win-x64/Moz_Avalonia.exe`. Trimming and NativeAOT remain disabled because the current reflection-heavy code paths and dependencies are not safely annotated for them.

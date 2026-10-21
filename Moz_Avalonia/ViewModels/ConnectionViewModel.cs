@@ -28,6 +28,7 @@ public partial class ConnectionViewModel : ViewModelBase, IAsyncDisposable
     private readonly CancellationTokenSource _lifetime = new();
     private readonly Task _telemetryTask;
     private MozManager? _manager;
+    public MozManager? Manager => _manager;
     private ulong _lastBytesIn;
     private ulong _lastBytesOut;
     private DateTimeOffset? _connectedAt;
@@ -96,6 +97,8 @@ public partial class ConnectionViewModel : ViewModelBase, IAsyncDisposable
     [ObservableProperty] private string _serverStatsStatus = "Not receiving";
     [ObservableProperty] private string _relayEndpoint = "engage.cloudflareclient.com:2408";
     [ObservableProperty] private string _relayListenPort = "6445";
+    [ObservableProperty] private string _relayTypeSelection = "UDP";
+    public List<string> RelayTypes { get; } = new List<string> { "UDP", "TCP" };
     [ObservableProperty] private string _errorMessage = string.Empty;
     [ObservableProperty] private int _graphVersion;
 
@@ -132,9 +135,17 @@ public partial class ConnectionViewModel : ViewModelBase, IAsyncDisposable
                 "BALETUN" => TransportMode.BaleTun,
                 _ => TransportMode.LiteNet
             };
+            STUN.STUNNATType? spoofNat = null;
+            if (!string.IsNullOrEmpty(Profile.StunSpoofNatType) && 
+                Enum.TryParse<STUN.STUNNATType>(Profile.StunSpoofNatType, out var parsedNat))
+            {
+                spoofNat = parsedNat;
+            }
+
             _manager = new MozManager(server, checked((byte)Profile.MaxChannels), stun, SocksPort, HttpPort, 10000,
                 server.Equals("http://127.0.0.1:5209/", StringComparison.OrdinalIgnoreCase), mode,
-                Profile.UseHttpProxy, NullIfEmpty(Profile.HttpProxy), Profile.ForceSymmetric, Profile.SkipStun);
+                Profile.UseHttpProxy, NullIfEmpty(Profile.HttpProxy), Profile.ForceSymmetric, Profile.SkipStun,
+                Profile.StunSpoofLocalAddr, Profile.StunSpoofPublicAddr, spoofNat);
             _manager.symmetricConnectionClientCount = Profile.AggressivePortScan ? 3000 : 100;
             _manager.NewLogArrived += OnLog;
             _manager.LatencyUpdated += OnLatency;
@@ -212,14 +223,16 @@ public partial class ConnectionViewModel : ViewModelBase, IAsyncDisposable
         try
         {
             if (_manager?.MClient is null || !_manager.MClient.isRunning)
-                throw new InvalidOperationException("An active reliable connection is required for UDP relays.");
+                throw new InvalidOperationException("An active reliable connection is required for relays.");
             if (!TrySplitEndpoint(RelayEndpoint, out var host, out var destinationPort))
                 throw new FormatException("Relay endpoint must be in host:port form (IPv6 literals may use [address]:port). ");
             if (!int.TryParse(RelayListenPort, out var localPort) || localPort is < 1 or > 65535)
                 throw new FormatException("The local relay port must be between 1 and 65535.");
             if (Relays.Any(x => x.LocalPort == localPort))
                 throw new InvalidOperationException("A relay already uses this local port.");
-            Relays.Add(_manager.MClient.CreateNewUdpRelay(host, destinationPort, localPort));
+            
+            var type = RelayTypeSelection == "TCP" ? TunType.CustomTcpTun : TunType.CustomUdpTun;
+            Relays.Add(_manager.MClient.CreateNewRelay(host, destinationPort, localPort, type));
         }
         catch (Exception ex)
         {
@@ -233,7 +246,7 @@ public partial class ConnectionViewModel : ViewModelBase, IAsyncDisposable
         if (relay is null || relay.Status != TunStatus.Disconnected || _manager?.MClient is null)
             return;
         Relays.Remove(relay);
-        Relays.Add(_manager.MClient.CreateNewUdpRelay(relay.DestinationHostName, relay.DestinationPort, relay.LocalPort));
+        Relays.Add(_manager.MClient.CreateNewRelay(relay.DestinationHostName, relay.DestinationPort, relay.LocalPort, relay.Type));
     }
 
     [RelayCommand(CanExecute = nameof(IsConnected))]
@@ -276,7 +289,46 @@ public partial class ConnectionViewModel : ViewModelBase, IAsyncDisposable
                 UdpStatus = "Connected";
                 StatusBrush = Brushes.LimeGreen;
                 _connectedAt ??= DateTimeOffset.UtcNow;
-                if (!wasConnected) _notify($"{Name} connected", "The UDP tunnel is ready.");
+                if (!wasConnected)
+                {
+                    _notify($"{Name} connected", "The UDP tunnel is ready.");
+                    if (_manager is not null)
+                    {
+                        var stunSrv = _manager.StunServerAddress;
+                        var natT = _manager.NatType;
+                        var serverAddr = ServerAddress;
+                        if (!serverAddr.StartsWith("http://", StringComparison.OrdinalIgnoreCase) && 
+                            !serverAddr.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                        {
+                            serverAddr = "http://" + serverAddr;
+                        }
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                using var client = new System.Net.Http.HttpClient();
+                                client.Timeout = TimeSpan.FromMilliseconds(4000);
+                                if (!string.IsNullOrWhiteSpace(stunSrv))
+                                {
+                                    var content = new System.Net.Http.FormUrlEncodedContent(new[]
+                                    {
+                                        new KeyValuePair<string, string>("stun", stunSrv)
+                                    });
+                                    await client.PostAsync(serverAddr.TrimEnd('/') + "/report/stunsuccess", content);
+                                }
+                                if (!string.IsNullOrWhiteSpace(natT))
+                                {
+                                    var content = new System.Net.Http.FormUrlEncodedContent(new[]
+                                    {
+                                        new KeyValuePair<string, string>("nat", natT)
+                                    });
+                                    await client.PostAsync(serverAddr.TrimEnd('/') + "/report/nattypes", content);
+                                }
+                            }
+                            catch {}
+                        });
+                    }
+                }
                 App.VpnManager?.UpdateNotificationStatus("Connected");
                 break;
             case StatusResult.UDPConnecting:

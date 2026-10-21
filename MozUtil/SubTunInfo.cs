@@ -1,4 +1,4 @@
-﻿using MozUtil.Clients;
+using MozUtil.Clients;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -23,7 +23,8 @@ namespace MozUtil
    {
       SimpleMozConnection,
       MtProtoConnection,
-      CustomUdpTun
+      CustomUdpTun,
+      CustomTcpTun
    }
    public class SubTunInfo : INotifyPropertyChanged
    {

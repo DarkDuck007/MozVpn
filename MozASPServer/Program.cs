@@ -16,6 +16,50 @@ namespace DirtySocksASP
 {
    public class Program
    {
+      private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, int> StunStats = new();
+      private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, int> NatStats = new();
+      private static readonly object StunFileLock = new();
+      private static readonly object NatFileLock = new();
+
+      private static void LoadCsv(string filepath, System.Collections.Concurrent.ConcurrentDictionary<string, int> target)
+      {
+         try
+         {
+            if (File.Exists(filepath))
+            {
+               var lines = File.ReadAllLines(filepath);
+               foreach (var line in lines)
+               {
+                  var parts = line.Split(',');
+                  if (parts.Length == 2 && int.TryParse(parts[1], out int count))
+                  {
+                     target[parts[0]] = count;
+                  }
+               }
+            }
+         }
+         catch (Exception ex)
+         {
+            Console.WriteLine($"Error reading {filepath}: {ex.Message}");
+         }
+      }
+
+      private static void SaveCsv(string filepath, System.Collections.Concurrent.ConcurrentDictionary<string, int> source, object fileLock)
+      {
+         lock (fileLock)
+         {
+            try
+            {
+               var lines = source.Select(kvp => $"{kvp.Key},{kvp.Value}");
+               File.WriteAllLines(filepath, lines);
+            }
+            catch (Exception ex)
+            {
+               Console.WriteLine($"Error writing {filepath}: {ex.Message}");
+            }
+         }
+      }
+
       public static void Main(string[] args)
       {
          var builder = WebApplication.CreateBuilder(args);
@@ -24,6 +68,8 @@ namespace DirtySocksASP
          //builder.Services.AddDirectoryBrowser();
          var app = builder.Build();
          StaticData.ServerStartDateTime = DateTime.UtcNow;
+         LoadCsv("stun_success_stats.csv", StunStats);
+         LoadCsv("nat_type_stats.csv", NatStats);
          //app.Urls.Add("http://0.0.0.0:5000");
          //app.UseStaticFiles();
          //app.UseDirectoryBrowser();
@@ -113,6 +159,73 @@ namespace DirtySocksASP
          //      Logger.Log(ex.Message + Environment.NewLine + ex.StackTrace);
          //   }
          //});
+          app.MapGet("/alias", async context =>
+          {
+             string? alias = Environment.GetEnvironmentVariable("MOZ_SERVER_ALIAS")
+                             ?? Environment.GetEnvironmentVariable("SERVER_ALIAS");
+             if (string.IsNullOrWhiteSpace(alias))
+             {
+                context.Response.StatusCode = 404;
+                await context.Response.WriteAsync("No alias set.");
+             }
+             else
+             {
+                context.Response.StatusCode = 200;
+                context.Response.ContentType = "text/plain; charset=utf-8";
+                await context.Response.WriteAsync(alias);
+             }
+          });
+
+          app.MapPost("/report/stunsuccess", async context =>
+          {
+             var form = await context.Request.ReadFormAsync();
+             var stun = form["stun"].ToString();
+             if (!string.IsNullOrWhiteSpace(stun))
+             {
+                StunStats.AddOrUpdate(stun, 1, (_, count) => count + 1);
+                SaveCsv("stun_success_stats.csv", StunStats, StunFileLock);
+                context.Response.StatusCode = 200;
+                await context.Response.WriteAsync("Success");
+             }
+             else
+             {
+                context.Response.StatusCode = 400;
+                await context.Response.WriteAsync("Missing stun parameter");
+             }
+          });
+
+          app.MapGet("/getreport/stunsuccess", async context =>
+          {
+             context.Response.ContentType = "text/csv; charset=utf-8";
+             var lines = StunStats.Select(kvp => $"{kvp.Key},{kvp.Value}");
+             await context.Response.WriteAsync(string.Join("\n", lines));
+          });
+
+          app.MapPost("/report/nattypes", async context =>
+          {
+             var form = await context.Request.ReadFormAsync();
+             var nat = form["nat"].ToString();
+             if (!string.IsNullOrWhiteSpace(nat))
+             {
+                NatStats.AddOrUpdate(nat, 1, (_, count) => count + 1);
+                SaveCsv("nat_type_stats.csv", NatStats, NatFileLock);
+                context.Response.StatusCode = 200;
+                await context.Response.WriteAsync("Success");
+             }
+             else
+             {
+                context.Response.StatusCode = 400;
+                await context.Response.WriteAsync("Missing nat parameter");
+             }
+          });
+
+          app.MapGet("/getreport/nattypes", async context =>
+          {
+             context.Response.ContentType = "text/csv; charset=utf-8";
+             var lines = NatStats.Select(kvp => $"{kvp.Key},{kvp.Value}");
+             await context.Response.WriteAsync(string.Join("\n", lines));
+          });
+
          app.MapPost("/ReconLN", async context =>
          {
             //ClientManager.ReliableClients

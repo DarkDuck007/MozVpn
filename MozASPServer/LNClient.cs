@@ -1,4 +1,4 @@
-﻿using LiteNetLib;
+using LiteNetLib;
 using LiteNetLib.Utils;
 using Microsoft.AspNetCore.Hosting.Server;
 using MozUtil;
@@ -572,9 +572,20 @@ namespace DirtySocksASP
       {
          if (deliveryMethod == DeliveryMethod.Unreliable)
          {
-            //True udp, use those channels now.
-
-
+            byte[] RecDataUnrel = reader.RawData[reader.UserDataOffset..(reader.UserDataSize + reader.UserDataOffset)];
+            if (RecDataUnrel.Length >= 2)
+            {
+               ushort conID = BitConverter.ToUInt16(RecDataUnrel, 0);
+               LNUdpConnection? udpCon;
+               lock (udpConnections)
+               {
+                  udpConnections.TryGetValue(conID, out udpCon);
+               }
+               if (udpCon != null)
+               {
+                  _ = udpCon.SendDataToTargetAsync(RecDataUnrel[2..]);
+               }
+            }
             return;
          }
          //System.Threading.Thread.Sleep(10);
@@ -639,7 +650,78 @@ namespace DirtySocksASP
                         }
                         break;
                      case ClientCommands.OpenEndToEndCustomPipe:
+                        {
+                           var pipeInfo = ClientCommandUtils.ReadPipeInfo(RecData, 6);
+                            if (pipeInfo.SockProto == ProtocolType.Tcp)
+                            {
+                               var tcs = new TaskCompletionSource<LNConnection>();
+                               lock (pendingConnections)
+                               {
+                                  pendingConnections[pipeInfo.ConnectionID] = tcs;
+                               }
+                               _ = Task.Run(async () =>
+                               {
+                                  try
+                                  {
+                                     TcpClient tcpCli = new TcpClient();
+                                     await tcpCli.ConnectAsync(pipeInfo.IPAddress!, pipeInfo.DestinationPort);
+ 
+                                     LNConnection Con = new LNConnection(pipeInfo.ConnectionID, pipeInfo.Channel, tcpCli, peer.Id, ref _Server, 100);
+                                     Con.BoundChannelID = pipeInfo.Channel;
+                                     Con.ConnectionClosed += Con_ConnectionClosed;
+                                     Con.DataAvailable += Con_DataAvailable;
+                                     lock (connections)
+                                     {
+                                        connections[pipeInfo.ConnectionID] = Con;
+                                     }
+                                     Interlocked.Increment(ref StaticData._TotalActiveConnections);
+                                     _ = Con.StartConnectionAsync();
+                                     tcs.TrySetResult(Con);
+                                  }
+                                  catch (Exception ex)
+                                  {
+                                     Logger.Log($"Failed to open custom TCP pipe to {pipeInfo.IPAddress}:{pipeInfo.DestinationPort}: {ex.Message}");
+                                     tcs.TrySetException(ex);
+                                     byte[] CloseConReqBuffer = new byte[4];
+                                     BitConverter.GetBytes(pipeInfo.ConnectionID).CopyTo(CloseConReqBuffer, 2);
+                                     peer.Send(CloseConReqBuffer, DeliveryMethod.ReliableUnordered);
+                                  }
+                                  finally
+                                  {
+                                     lock (pendingConnections)
+                                     {
+                                        pendingConnections.Remove(pipeInfo.ConnectionID);
+                                     }
+                                  }
+                               });
+                            }
+                           else if (pipeInfo.SockProto == ProtocolType.Udp)
+                           {
+                              try
+                              {
+                                 UdpClient udpCli = new UdpClient();
+                                 udpCli.Connect(pipeInfo.IPAddress!, pipeInfo.DestinationPort);
 
+                                 var udpCon = new LNUdpConnection(pipeInfo.ConnectionID, pipeInfo.Channel, udpCli, peer);
+                                 udpCon.ConnectionClosed += (s, cid) =>
+                                 {
+                                    lock (udpConnections)
+                                    {
+                                       udpConnections.Remove(cid);
+                                    }
+                                 };
+                                 lock (udpConnections)
+                                 {
+                                    udpConnections[pipeInfo.ConnectionID] = udpCon;
+                                 }
+                                 _ = udpCon.StartReceiveAsync();
+                              }
+                              catch (Exception ex)
+                              {
+                                 Logger.Log($"Failed to open custom UDP pipe to {pipeInfo.IPAddress}:{pipeInfo.DestinationPort}: {ex.Message}");
+                              }
+                           }
+                        }
                         break;
                      case ClientCommands.NewMtProtoPipe:
                         if (RecData.Length < 8)
@@ -712,6 +794,13 @@ namespace DirtySocksASP
                   {
                      connections[ConIDToRemove].Close();
                   }
+                  lock (udpConnections)
+                  {
+                     if (udpConnections.TryGetValue(ConIDToRemove, out var udpCon))
+                     {
+                        udpCon.Close();
+                     }
+                  }
                   if (PeerSupports(peer.Id, MozProtocolCapabilities.StreamCloseAcknowledgement))
                      peer.Send(RecData, DeliveryMethod.ReliableUnordered);
                   return;
@@ -747,6 +836,8 @@ namespace DirtySocksASP
       }
 
       private volatile Dictionary<byte, SubTunInfo> UdpRelaysDictionary = new Dictionary<byte, SubTunInfo>();//key is ID.
+      private readonly Dictionary<ushort, LNUdpConnection> udpConnections = new Dictionary<ushort, LNUdpConnection>();
+      private readonly Dictionary<ushort, TaskCompletionSource<LNConnection>> pendingConnections = new Dictionary<ushort, TaskCompletionSource<LNConnection>>();
 
       private async Task CreateNewUdpRelayAsync(byte[] CommandBytes, int PeerID, int CommandOffset = 6)
       {
@@ -772,41 +863,63 @@ namespace DirtySocksASP
       }
       private async Task HandlePacketAsync(ushort ConnectionID, byte ChannelID, ArraySegment<byte> Data, int PeerID)
       {
-         try
-         {
-            if (connections.ContainsKey(ConnectionID))
-            {
-               await connections[ConnectionID].SendDataToServerAsync(Data);
-            }
-            else
-            {
-               //IPEndPoint DestinationIPEndPoint = new IPEndPoint(IPAddress.Loopback)
-               long StopwatchTicks = Stopwatch.GetTimestamp();
-               //if (ConnectionID == ushort.MaxValue)
-               //{
-               //   DestinationPort = StaticServers.MTServerPort;
-               //}
-               TcpClient Cli = new TcpClient(StaticServers.DestServerIP, StaticServers.DestServerPort);
-               long StopwatchAfterTicks = Stopwatch.GetTimestamp();
-               StaticData.AddTcpClientCreationDelayTick(StopwatchAfterTicks - StopwatchTicks);
-               //ReliableConnection Con = new ReliableConnection(ConnectionID, Cli, ClientEP, RufConm, KeyHol);
-               LNConnection Con = new LNConnection(ConnectionID, ChannelID, Cli, PeerID, ref _Server, 100);
-               //Logger.Log($"Peer ID: {PeerID}, Connection ID: {ConnectionID}, ChannelID {ChannelID}");
-               //Con.PeerID = PeerID;
-               Con.BoundChannelID = ChannelID;
-               Con.ConnectionClosed += Con_ConnectionClosed;
-               Con.DataAvailable += Con_DataAvailable;
-               connections.Add(ConnectionID, Con);
-               Interlocked.Increment(ref StaticData._TotalActiveConnections);
-               _ = Con.StartConnectionAsync();
-               await Con.SendDataToServerAsync(Data);
-            }
-         }
-         catch (ObjectDisposedException)
-         {
-            Logger.Log($"ObjectDisposedException {ConnectionID}");
-            connections[ConnectionID].Close();
-         }
+          try
+          {
+             if (connections.TryGetValue(ConnectionID, out var con) && con != null)
+             {
+                await con.SendDataToServerAsync(Data);
+             }
+             else
+             {
+                TaskCompletionSource<LNConnection>? pendingTcs = null;
+                lock (pendingConnections)
+                {
+                   pendingConnections.TryGetValue(ConnectionID, out pendingTcs);
+                }
+                if (pendingTcs != null)
+                {
+                   try
+                   {
+                      LNConnection pendingCon = await pendingTcs.Task;
+                      await pendingCon.SendDataToServerAsync(Data);
+                   }
+                   catch
+                   {
+                      // Ignore if target connection failed
+                   }
+                   return;
+                }
+
+                //IPEndPoint DestinationIPEndPoint = new IPEndPoint(IPAddress.Loopback)
+                long StopwatchTicks = Stopwatch.GetTimestamp();
+                //if (ConnectionID == ushort.MaxValue)
+                //{
+                //   DestinationPort = StaticServers.MTServerPort;
+                //}
+                TcpClient Cli = new TcpClient(StaticServers.DestServerIP, StaticServers.DestServerPort);
+                long StopwatchAfterTicks = Stopwatch.GetTimestamp();
+                StaticData.AddTcpClientCreationDelayTick(StopwatchAfterTicks - StopwatchTicks);
+                //ReliableConnection Con = new ReliableConnection(ConnectionID, Cli, ClientEP, RufConm, KeyHol);
+                LNConnection Con = new LNConnection(ConnectionID, ChannelID, Cli, PeerID, ref _Server, 100);
+                //Logger.Log($"Peer ID: {PeerID}, Connection ID: {ConnectionID}, ChannelID {ChannelID}");
+                //Con.PeerID = PeerID;
+                Con.BoundChannelID = ChannelID;
+                Con.ConnectionClosed += Con_ConnectionClosed;
+                Con.DataAvailable += Con_DataAvailable;
+                connections.Add(ConnectionID, Con);
+                Interlocked.Increment(ref StaticData._TotalActiveConnections);
+                _ = Con.StartConnectionAsync();
+                await Con.SendDataToServerAsync(Data);
+             }
+          }
+          catch (ObjectDisposedException)
+          {
+             Logger.Log($"ObjectDisposedException {ConnectionID}");
+             if (connections.TryGetValue(ConnectionID, out var conToClose) && conToClose != null)
+             {
+                conToClose.Close();
+             }
+          }
       }
 
       private void Con_DataAvailable(object? sender, MozPacket e)

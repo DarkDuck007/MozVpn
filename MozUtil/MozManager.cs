@@ -91,6 +91,9 @@ namespace MozUtil
 
         private int _HttpPort;
         public int HTTPPort { get { return _HttpPort; } }
+        public string StunServerAddress => _StunServerAddress;
+        public string NatType => stunResult.NATType.ToString();
+        public STUNQueryResult StunResult => stunResult;
         private int _MtProtoPort;
 
         public int MtProtoPort
