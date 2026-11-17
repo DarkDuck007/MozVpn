@@ -25,7 +25,7 @@ public class AndroidVpnServiceManager : IVpnServiceManager
         }
     }
 
-    public void StartVpn(string profileName, int socksPort)
+    public void StartVpn(string profileName, int socksPort, string? serverAddress = null)
     {
         if (IsVpnRunning && ActiveSocksPort == socksPort)
         {

@@ -27,7 +27,21 @@ public partial class App : Application
         {
             VpnManager = new DesktopVpnServiceManager();
             desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
-            desktop.Exit += (_, _) => DesktopIntegrationService.ClearWindowsSystemProxyOnExit();
+            desktop.Exit += (_, _) =>
+            {
+                DesktopIntegrationService.ClearWindowsSystemProxyOnExit();
+                if (VpnManager != null && VpnManager.IsVpnRunning)
+                {
+                    try { VpnManager.StopVpn(); } catch {}
+                }
+            };
+            AppDomain.CurrentDomain.ProcessExit += (_, _) =>
+            {
+                if (VpnManager != null && VpnManager.IsVpnRunning)
+                {
+                    try { VpnManager.StopVpn(); } catch {}
+                }
+            };
             desktop.MainWindow = new MainWindow
             {
                 DataContext = _mainViewModel,
@@ -53,13 +67,28 @@ public partial class App : Application
     private void ShowMainWindow()
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime { MainWindow: MainWindow window })
-            window.ShowFromTray();
+        {
+            try
+            {
+                window.ShowFromTray();
+            }
+            catch (Exception ex)
+            {
+                MozUtil.Logger.Log($"[App] Error showing main window: {ex.Message}");
+            }
+        }
     }
 
     private async void ExitMenuClicked(object? sender, EventArgs e)
     {
         if (ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop) return;
-        if (desktop.MainWindow is MainWindow window) await window.ExitAsync();
-        desktop.Shutdown();
+        if (desktop.MainWindow is MainWindow window)
+        {
+            await window.ExitAsync();
+        }
+        else
+        {
+            desktop.Shutdown();
+        }
     }
 }

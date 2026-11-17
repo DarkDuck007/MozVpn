@@ -1,14 +1,21 @@
 using System;
 using System.IO;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using Moz_Avalonia.Models;
 
 namespace Moz_Avalonia.Services;
 
+[JsonSourceGenerationOptions(WriteIndented = true)]
+[JsonSerializable(typeof(AppSettings))]
+[JsonSerializable(typeof(ConnectionProfile))]
+internal partial class SettingsJsonContext : JsonSerializerContext
+{
+}
+
 public sealed class SettingsStore
 {
-    private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
     private static readonly System.Threading.SemaphoreSlim FileLock = new(1, 1);
     private readonly string _path;
 
@@ -32,7 +39,7 @@ public sealed class SettingsStore
                     if (!File.Exists(_path))
                         return new AppSettings();
                     await using var stream = new FileStream(_path, FileMode.Open, FileAccess.Read, FileShare.Read);
-                    return await JsonSerializer.DeserializeAsync<AppSettings>(stream, JsonOptions) ?? new AppSettings();
+                    return await JsonSerializer.DeserializeAsync(stream, SettingsJsonContext.Default.AppSettings) ?? new AppSettings();
                 }
                 catch (IOException)
                 {
@@ -66,7 +73,7 @@ public sealed class SettingsStore
                 try
                 {
                     await using (var stream = new FileStream(temporaryPath, FileMode.Create, FileAccess.Write, FileShare.None))
-                        await JsonSerializer.SerializeAsync(stream, settings, JsonOptions);
+                        await JsonSerializer.SerializeAsync(stream, settings, SettingsJsonContext.Default.AppSettings);
                     File.Move(temporaryPath, _path, true);
                     break;
                 }

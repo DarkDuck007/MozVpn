@@ -1,4 +1,4 @@
-﻿namespace MozUtil.NatUtils
+namespace MozUtil.NatUtils
 {
    public enum TransportMode
    {
@@ -7,6 +7,7 @@
       LiteNet,
       TCP,
       BaleTun,
-      UDPRelay
+      UDPRelay,
+      MZRoam
    }
 }

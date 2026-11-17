@@ -18,17 +18,12 @@
     <Border Grid.Row="0" Background="#101D29" BorderBrush="#223548" BorderThickness="0,0,0,1" Padding="14,10">
       <Grid ColumnDefinitions="*,Auto">
         <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-          <Button Command="{Binding ToggleUiModeCommand}" Background="Transparent" BorderThickness="0" Padding="0" Cursor="Hand">
-            <StackPanel Orientation="Horizontal" Spacing="8">
-              <Border Width="28" Height="28" CornerRadius="4" Background="#000000" ClipToBounds="True">
-                <Image Source="/Assets/avalonia-logo.ico" Stretch="Uniform" />
-              </Border>
-              <TextBlock Text="MOZ VPN" FontWeight="Bold" FontSize="16" VerticalAlignment="Center" />
-            </StackPanel>
-          </Button>
-          <Border Background="#223548" CornerRadius="3" Padding="5,2" VerticalAlignment="Center" Margin="4,0,0,0">
-            <TextBlock Text="{Binding UiModeText}" FontSize="10" FontWeight="SemiBold" Foreground="#4CC9F0" />
-          </Border>
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <Border Width="28" Height="28" CornerRadius="4" Background="#000000" ClipToBounds="True">
+              <Image Source="/Assets/avalonia-logo.ico" Stretch="Uniform" />
+            </Border>
+            <TextBlock Text="MOZ VPN" FontWeight="Bold" FontSize="16" VerticalAlignment="Center" />
+          </StackPanel>
         </StackPanel>
         <TextBlock Grid.Column="1" Text="{Binding StatusMessage}" FontSize="12" Foreground="#B8CAD9" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="160" />
       </Grid>
@@ -237,8 +232,8 @@
                     <Button Grid.Column="1" Content="＋" Command="{Binding AddCustomServerCommand}" ToolTip.Tip="Remember this server" />
                   </Grid>
                   
-                  <TextBlock Text="STUN server" Classes="muted" FontSize="11" />
-                  <Grid ColumnDefinitions="*,Auto">
+                  <TextBlock Text="STUN server" Classes="muted" FontSize="11" IsVisible="{Binding !IsMZRoamSelected}" />
+                  <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding !IsMZRoamSelected}">
                     <ComboBox ItemsSource="{Binding StunOptions}"
                               Text="{Binding StunServer, Mode=TwoWay}"
                               IsEditable="True"
@@ -258,9 +253,24 @@
                     </StackPanel>
                   </Grid>
 
-                  <CheckBox Content="Symmetric" IsChecked="{Binding ForceSymmetric}" />
-                  <CheckBox Content="Aggressive ports" IsChecked="{Binding AggressivePortScan}" />
-                  <CheckBox Content="Skip STUN" IsChecked="{Binding SkipStun}" />
+                  <StackPanel Spacing="8" IsVisible="{Binding IsMZRoamSelected}">
+                    <TextBlock Text="MZRoam seed" Classes="muted" FontSize="11" />
+                    <TextBox Text="{Binding RoamSeed}" PlaceholderText="{Binding RoamSeedPlaceholder}" Padding="6" />
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="6">
+                      <StackPanel>
+                        <TextBlock Text="Ports / window" Classes="muted" FontSize="11" />
+                        <TextBox Text="{Binding RoamPortCount}" Padding="6" />
+                      </StackPanel>
+                      <StackPanel Grid.Column="1">
+                        <TextBlock Text="Interval (s)" Classes="muted" FontSize="11" />
+                        <TextBox Text="{Binding RoamIntervalSeconds}" Padding="6" />
+                      </StackPanel>
+                    </Grid>
+                  </StackPanel>
+
+                  <CheckBox Content="Symmetric" IsChecked="{Binding ForceSymmetric}" IsVisible="{Binding !IsMZRoamSelected}" />
+                  <CheckBox Content="Aggressive ports" IsChecked="{Binding AggressivePortScan}" IsVisible="{Binding !IsMZRoamSelected}" />
+                  <CheckBox Content="Skip STUN" IsChecked="{Binding SkipStun}" IsVisible="{Binding !IsMZRoamSelected}" />
                   <CheckBox Content="Auto-connect at launch" IsChecked="{Binding AutoConnectProfile}" />
                   
                   <Grid ColumnDefinitions="*,*,*" ColumnSpacing="6" Margin="0,6,0,0">

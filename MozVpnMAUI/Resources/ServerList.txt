@@ -1,15 +1,11 @@
-https://mz-vl-ducky-luvsyu.topolly84.workers.dev/
+# Format: address|roam_seed|roam_ports|roam_interval_seconds|alias (trailing fields are optional)
+http://27.133.128.207:6889/|mirai-roam-seed-27133|10|10|mirai
+http://168.110.52.213:6889/|oracle-roam-seed-168110|10|10|oracle
+http://107.174.42.106:6889/|la-roam-seed-107174|10|10|la
+http://194.164.49.233:80/|ionos-roam-seed-194164|10|10|ionos
+https://ocmz.topolly84.workers.dev/|moz-default-seed-ocmz|10|10
+https://lamz.topolly84.workers.dev/|moz-default-seed-lamz|10|10
+https://noisy-tree-58ff.topolly84.workers.dev/|moz-default-seed-noisy|10|10
 http://www.dirtypx.somee.com/
+https://mz-vl-ducky-luvsyu.topolly84.workers.dev/|moz-default-seed-ducky|10|10
 http://dirtypx.somee.com/
-https://ordakblack.bsite.net/
-http://127.0.0.1:5209/
-https://dirtpxnetcore.chbk.run/
-https://irpxdotnetproj.chbk.run/
-http://blackordak-001-site1.ctempurl.com/
-http://PxTestSrv.somee.com/
-https://lily.darkduck.helioho.st/
-http://mzhs1.realiteam.art/
-http://mzhs2.realiteam.art/
-https://mzhsssl1.realiteam.art/
-https://mzhsssl2.realiteam.art/
-https://noisy-tree-58ff.topolly84.workers.dev/

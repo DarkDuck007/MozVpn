@@ -10,6 +10,9 @@ public sealed class AppSettings
     public string HttpProxy { get; set; } = string.Empty;
     public string Transport { get; set; } = "Reliable";
     public int MaxChannels { get; set; } = 32;
+    public string RoamSeed { get; set; } = string.Empty;
+    public int RoamPortCount { get; set; } = 10;
+    public int RoamIntervalSeconds { get; set; } = 10;
     public bool UseHttpProxy { get; set; }
     public bool ForceSymmetric { get; set; }
     public bool AggressivePortScan { get; set; }
@@ -37,6 +40,9 @@ public sealed class ConnectionProfile
     public string HttpProxy { get; set; } = string.Empty;
     public string Transport { get; set; } = "Reliable";
     public int MaxChannels { get; set; } = 32;
+    public string RoamSeed { get; set; } = string.Empty;
+    public int RoamPortCount { get; set; } = 10;
+    public int RoamIntervalSeconds { get; set; } = 10;
     public bool UseHttpProxy { get; set; }
     public bool ForceSymmetric { get; set; }
     public bool AggressivePortScan { get; set; }

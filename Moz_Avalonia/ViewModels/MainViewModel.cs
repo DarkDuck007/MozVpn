@@ -15,6 +15,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Moz_Avalonia.Models;
 using Moz_Avalonia.Services;
+using MozUtil.NatUtils;
 
 namespace Moz_Avalonia.ViewModels;
 
@@ -24,6 +25,7 @@ public partial class MainViewModel : ViewModelBase, IAsyncDisposable
     private readonly StunProbeService _stunProbe = new();
     private readonly DesktopIntegrationService _desktop = new();
     private readonly DesktopNotificationService _notifications = new();
+    private readonly Dictionary<string, MozServerDescriptor> _builtinServers = new(StringComparer.OrdinalIgnoreCase);
     private AppSettings _settings = new();
     private bool _initialized;
     private bool _lastDraftSaveSucceeded;
@@ -46,7 +48,12 @@ public partial class MainViewModel : ViewModelBase, IAsyncDisposable
             return false;
         };
 
-        foreach (var server in ResourceCatalog.Load("ServerList.txt")) ServerOptions.Add(server);
+        foreach (var descriptor in ResourceCatalog.LoadServers())
+        {
+            _builtinServers[NormalizeServer(descriptor.Address)] = descriptor;
+            _builtinServers[descriptor.Address.Trim()] = descriptor;
+            AddUnique(ServerOptions, descriptor.Address);
+        }
         foreach (var server in ResourceCatalog.Load("StunList.txt")) StunOptions.Add(server);
         foreach (var channel in Enumerable.Range(1, 64)) ChannelOptions.Add(channel);
         foreach (var browser in _desktop.FindBrowsers()) Browsers.Add(browser);
@@ -55,7 +62,7 @@ public partial class MainViewModel : ViewModelBase, IAsyncDisposable
     public ObservableCollection<string> ServerOptions { get; } = [];
     public ObservableCollection<string> StunOptions { get; } = [];
     public ObservableCollection<string> HttpProxyOptions { get; } = [];
-    public ObservableCollection<string> TransportOptions { get; } = ["Reliable", "Unreliable", "TCP", "BALETUN"];
+    public ObservableCollection<string> TransportOptions { get; } = ["Reliable", "MZRoam", "Unreliable", "TCP", "BALETUN"];
     public ObservableCollection<int> ChannelOptions { get; } = [];
     public ObservableCollection<ConnectionViewModel> Connections { get; } = [];
     public ObservableCollection<StunProbeResult> StunResults { get; } = [];
@@ -80,6 +87,9 @@ public partial class MainViewModel : ViewModelBase, IAsyncDisposable
     [ObservableProperty] private string _httpProxy = string.Empty;
     [ObservableProperty] private string _selectedTransport = "Reliable";
     [ObservableProperty] private int _maxChannels = 32;
+    [ObservableProperty] private string _roamSeed = string.Empty;
+    [ObservableProperty] private int _roamPortCount = 10;
+    [ObservableProperty] private int _roamIntervalSeconds = 10;
     [ObservableProperty] private bool _useHttpProxy;
     [ObservableProperty] private bool _forceSymmetric;
     [ObservableProperty] private bool _aggressivePortScan;
@@ -105,10 +115,36 @@ public partial class MainViewModel : ViewModelBase, IAsyncDisposable
     [ObservableProperty] private int _stunTestTimeoutMs = 1800;
     [ObservableProperty] private string _stunTestSummary = "Ready to test all configured STUN servers.";
 
+    public bool IsMZRoamSelected => SelectedTransport.Equals("MZRoam", StringComparison.OrdinalIgnoreCase);
+    public string RoamSeedPlaceholder => FindBuiltInServer(ServerAddress)?.HasRoamSeed == true
+        ? "Using predefined server seed (optional override)"
+        : "Shared server seed";
+
+    private MozServerDescriptor? FindBuiltInServer(string? address)
+    {
+        if (string.IsNullOrWhiteSpace(address)) return null;
+        if (_builtinServers.TryGetValue(address.Trim(), out var direct)) return direct;
+        if (_builtinServers.TryGetValue(NormalizeServer(address), out var normalized)) return normalized;
+        return null;
+    }
+
+    partial void OnSelectedTransportChanged(string value)
+    {
+        OnPropertyChanged(nameof(IsMZRoamSelected));
+        OnPropertyChanged(nameof(RoamSeedPlaceholder));
+    }
+
     partial void OnSelectedServerOptionChanged(string? value)
     {
         if (string.IsNullOrWhiteSpace(value)) return;
         ServerAddress = value;
+        var builtIn = FindBuiltInServer(value);
+        if (builtIn is not null && EditingConnection is null)
+        {
+            RoamPortCount = builtIn.RoamPortCount;
+            RoamIntervalSeconds = builtIn.RoamIntervalSeconds;
+        }
+        OnPropertyChanged(nameof(RoamSeedPlaceholder));
         if (_initialized && EditingConnection is null)
             _settings.ServerAddress = NormalizeServer(value);
     }
@@ -143,23 +179,32 @@ public partial class MainViewModel : ViewModelBase, IAsyncDisposable
         HttpProxy = _settings.HttpProxy;
         SelectedTransport = TransportOptions.Contains(_settings.Transport) ? _settings.Transport : "Reliable";
         MaxChannels = Math.Clamp(_settings.MaxChannels, 1, 64);
+        RoamSeed = _settings.RoamSeed ?? string.Empty;
+        RoamPortCount = Math.Clamp(_settings.RoamPortCount > 0 ? _settings.RoamPortCount : 10, 1, 256);
+        RoamIntervalSeconds = Math.Clamp(_settings.RoamIntervalSeconds > 0 ? _settings.RoamIntervalSeconds : 10, 1, 3600);
         UseHttpProxy = _settings.UseHttpProxy;
         ForceSymmetric = _settings.ForceSymmetric;
         AggressivePortScan = _settings.AggressivePortScan;
         SkipStun = _settings.SkipStun;
         IsEditorOpen = _settings.IsEditorOpen;
-        if (_settings.IsSimpleMode.HasValue)
-        {
-            IsSimpleMode = _settings.IsSimpleMode.Value;
-        }
-        else
-        {
-            IsSimpleMode = OperatingSystem.IsAndroid();
-            _settings.IsSimpleMode = IsSimpleMode;
-        }
+        // Simple mode is currently disabled; always use Pro mode.
+        IsSimpleMode = false;
+        _settings.IsSimpleMode = false;
         StunTestBatchSize = Math.Clamp(_settings.StunTestBatchSize, 1, 64);
         StunTestTimeoutMs = Math.Clamp(_settings.StunTestTimeoutMs, 250, 30000);
-        MergeOptions(ServerOptions, _settings.CustomServers);
+        foreach (var custom in _settings.CustomServers)
+        {
+            var parsed = MZRoamProtocol.ParseServerLine(custom);
+            if (parsed is not null)
+            {
+                if (parsed.HasRoamSeed)
+                {
+                    _builtinServers[NormalizeServer(parsed.Address)] = parsed;
+                    _builtinServers[parsed.Address.Trim()] = parsed;
+                }
+                AddUnique(ServerOptions, parsed.Address);
+            }
+        }
         MergeOptions(StunOptions, _settings.CustomStunServers);
         MergeOptions(HttpProxyOptions, _settings.CustomHttpProxies);
         SynchronizeServerSelections();
@@ -297,10 +342,18 @@ public partial class MainViewModel : ViewModelBase, IAsyncDisposable
         // Case 1: Tapping a running profile -> Disconnect only the OS tunnel, keep backend connection alive
         if (App.VpnManager.IsVpnRunning && App.VpnManager.ActiveProfileName == connection.Name)
         {
-            App.VpnManager.StopVpn();
+            StatusMessage = "Stopping TUN tunnel...";
+            if (App.VpnManager is Services.DesktopVpnServiceManager desktopVpn)
+            {
+                await desktopVpn.StopVpnAsync();
+            }
+            else
+            {
+                App.VpnManager.StopVpn();
+            }
             IsVpnActive = false;
-            connection.RefreshVpnButtonText();
-            StatusMessage = "VPN device tunnel stopped.";
+            foreach (var c in Connections) c.RefreshVpnButtonText();
+            StatusMessage = "TUN device tunnel stopped.";
             return;
         }
 
@@ -326,19 +379,41 @@ public partial class MainViewModel : ViewModelBase, IAsyncDisposable
             if (!confirm) return;
 
             // Stop the previous tunnel
-            var activeConnection = Connections.FirstOrDefault(c => c.Name == App.VpnManager.ActiveProfileName);
-            App.VpnManager.StopVpn();
-            if (activeConnection != null)
+            if (App.VpnManager is Services.DesktopVpnServiceManager desktopVpnSwitch)
             {
-                activeConnection.RefreshVpnButtonText();
+                await desktopVpnSwitch.StopVpnAsync();
             }
+            else
+            {
+                App.VpnManager.StopVpn();
+            }
+            foreach (var c in Connections) c.RefreshVpnButtonText();
         }
 
-        // Start the Android VPN Service (pointing to this connection's SocksPort)
-        App.VpnManager.StartVpn(connection.Name, connection.SocksPort);
-        IsVpnActive = true;
-        connection.RefreshVpnButtonText();
-        StatusMessage = $"VPN Tunnel active: {connection.Name}";
+        // Start the OS VPN Service (pointing to this connection's SocksPort and server address)
+        StatusMessage = $"Activating TUN Tunnel for {connection.Name}...";
+        try
+        {
+            if (App.VpnManager is Services.DesktopVpnServiceManager desktopVpn)
+            {
+                await desktopVpn.StartVpnAsync(connection.Name, connection.SocksPort, connection.ServerAddress);
+            }
+            else
+            {
+                App.VpnManager.StartVpn(connection.Name, connection.SocksPort, connection.ServerAddress);
+            }
+
+            IsVpnActive = App.VpnManager.IsVpnRunning;
+            foreach (var c in Connections) c.RefreshVpnButtonText();
+            StatusMessage = IsVpnActive ? $"TUN Tunnel active: {connection.Name}" : "TUN Tunnel failed to start";
+        }
+        catch (Exception ex)
+        {
+            IsVpnActive = false;
+            foreach (var c in Connections) c.RefreshVpnButtonText();
+            StatusMessage = $"TUN Error: {ex.Message}";
+            MozUtil.Logger.Log($"[MainViewModel TUN] Error: {ex.Message}");
+        }
     }
 
     [RelayCommand]
@@ -360,6 +435,12 @@ public partial class MainViewModel : ViewModelBase, IAsyncDisposable
         HttpProxy = profile.HttpProxy;
         SelectedTransport = profile.Transport;
         MaxChannels = profile.MaxChannels;
+        var builtIn = FindBuiltInServer(profile.ServerAddress);
+        RoamSeed = (builtIn?.HasRoamSeed == true && string.Equals(profile.RoamSeed, builtIn.RoamSeed, StringComparison.Ordinal))
+            ? string.Empty
+            : (profile.RoamSeed ?? string.Empty);
+        RoamPortCount = profile.RoamPortCount > 0 ? profile.RoamPortCount : (builtIn?.RoamPortCount ?? 10);
+        RoamIntervalSeconds = profile.RoamIntervalSeconds > 0 ? profile.RoamIntervalSeconds : (builtIn?.RoamIntervalSeconds ?? 10);
         UseHttpProxy = profile.UseHttpProxy;
         ForceSymmetric = profile.ForceSymmetric;
         AggressivePortScan = profile.AggressivePortScan;
@@ -602,6 +683,34 @@ public partial class MainViewModel : ViewModelBase, IAsyncDisposable
     [RelayCommand]
     private async Task AddCustomServerAsync()
     {
+        var parsed = MZRoamProtocol.ParseServerLine(ServerAddress);
+        if (parsed is not null && parsed.HasRoamSeed)
+        {
+            _builtinServers[NormalizeServer(parsed.Address)] = parsed;
+            _builtinServers[parsed.Address.Trim()] = parsed;
+            ServerAddress = parsed.Address;
+            RoamSeed = parsed.RoamSeed!;
+            RoamPortCount = parsed.RoamPortCount;
+            RoamIntervalSeconds = parsed.RoamIntervalSeconds;
+            AddUnique(ServerOptions, ServerAddress);
+            await SaveAsync();
+            return;
+        }
+
+        if (IsMZRoamSelected)
+        {
+            var host = MZRoamProtocol.ExtractHost(ServerAddress);
+            if (string.IsNullOrWhiteSpace(host))
+            {
+                StatusMessage = "Enter a valid Moz server address or hostname.";
+                return;
+            }
+            ServerAddress = ServerAddress.Trim();
+            AddUnique(ServerOptions, ServerAddress);
+            await SaveAsync();
+            return;
+        }
+
         if (!Uri.TryCreate(NormalizeServer(ServerAddress), UriKind.Absolute, out var uri) || uri.Scheme is not ("http" or "https"))
         {
             StatusMessage = "Enter a valid HTTP or HTTPS Moz server URL.";
@@ -824,7 +933,7 @@ public partial class MainViewModel : ViewModelBase, IAsyncDisposable
         }
         catch { }
 #endif
-        return typeof(MainViewModel).Assembly.GetName().Version ?? new Version(1, 0, 0);
+        return typeof(MainViewModel).Assembly.GetName().Version ?? new Version(1, 1, 0);
     }
 
     private void OpenUrl(string url)
@@ -975,17 +1084,21 @@ public partial class MainViewModel : ViewModelBase, IAsyncDisposable
         _settings.HttpProxy = HttpProxy;
         _settings.Transport = SelectedTransport;
         _settings.MaxChannels = MaxChannels;
+        _settings.RoamSeed = RoamSeed;
+        _settings.RoamPortCount = Math.Clamp(RoamPortCount, 1, 256);
+        _settings.RoamIntervalSeconds = Math.Clamp(RoamIntervalSeconds, 1, 3600);
         _settings.UseHttpProxy = UseHttpProxy;
         _settings.ForceSymmetric = ForceSymmetric;
         _settings.AggressivePortScan = AggressivePortScan;
         _settings.SkipStun = SkipStun;
         _settings.AutoConnectSavedProfiles = false;
         _settings.IsEditorOpen = IsEditorOpen;
-        _settings.IsSimpleMode = IsSimpleMode;
+        _settings.IsSimpleMode = false;
         _settings.StunTestBatchSize = Math.Clamp(StunTestBatchSize, 1, 64);
         _settings.StunTestTimeoutMs = Math.Clamp(StunTestTimeoutMs, 250, 30000);
         _settings.PreferredBrowser = SelectedBrowser?.Executable ?? string.Empty;
-        _settings.CustomServers = ServerOptions.Except(ResourceCatalog.Load("ServerList.txt")).ToList();
+        var builtInAddresses = ResourceCatalog.LoadServers().Select(x => x.Address).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        _settings.CustomServers = ServerOptions.Where(x => !builtInAddresses.Contains(x)).ToList();
         _settings.CustomStunServers = StunOptions.Except(ResourceCatalog.Load("StunList.txt")).ToList();
         _settings.CustomHttpProxies = HttpProxyOptions.ToList();
         _settings.SavedProfiles = Connections.Select(x => x.Profile).ToList();
@@ -1044,15 +1157,35 @@ public partial class MainViewModel : ViewModelBase, IAsyncDisposable
         if (!IsUiVisible) _notifications.Show(title, message);
     }
 
-    private ConnectionProfile CreateDraftProfile() => new()
+    private ConnectionProfile CreateDraftProfile()
     {
-        BrowserProfileId = EditingConnection?.Profile.BrowserProfileId ?? Guid.NewGuid().ToString("N"),
-        Name = string.IsNullOrWhiteSpace(ProfileName) ? $"Connection {Connections.Count + 1}" : ProfileName.Trim(),
-        ServerAddress = NormalizeServer(ServerAddress), StunServer = StunServer.Trim(), HttpProxy = HttpProxy.Trim(),
-        Transport = SelectedTransport, MaxChannels = Math.Clamp(MaxChannels, 1, 64), UseHttpProxy = UseHttpProxy,
-        ForceSymmetric = ForceSymmetric, AggressivePortScan = AggressivePortScan, SkipStun = SkipStun,
-        AutoConnectAtLaunch = AutoConnectProfile
-    };
+        var parsed = MZRoamProtocol.ParseServerLine(ServerAddress);
+        var cleanAddress = parsed?.Address ?? ServerAddress;
+        var builtIn = FindBuiltInServer(cleanAddress);
+        var isRoam = IsMZRoamSelected;
+        var effectiveSeed = !string.IsNullOrWhiteSpace(RoamSeed)
+            ? RoamSeed.Trim()
+            : (!string.IsNullOrWhiteSpace(parsed?.RoamSeed) ? parsed!.RoamSeed! : (builtIn?.RoamSeed ?? string.Empty));
+
+        return new()
+        {
+            BrowserProfileId = EditingConnection?.Profile.BrowserProfileId ?? Guid.NewGuid().ToString("N"),
+            Name = string.IsNullOrWhiteSpace(ProfileName) ? $"Connection {Connections.Count + 1}" : ProfileName.Trim(),
+            ServerAddress = isRoam ? cleanAddress.Trim() : NormalizeServer(cleanAddress),
+            StunServer = StunServer.Trim(),
+            HttpProxy = HttpProxy.Trim(),
+            Transport = SelectedTransport,
+            MaxChannels = Math.Clamp(MaxChannels, 1, 64),
+            RoamSeed = effectiveSeed,
+            RoamPortCount = Math.Clamp(RoamPortCount, 1, 256),
+            RoamIntervalSeconds = Math.Clamp(RoamIntervalSeconds, 1, 3600),
+            UseHttpProxy = UseHttpProxy,
+            ForceSymmetric = ForceSymmetric,
+            AggressivePortScan = AggressivePortScan,
+            SkipStun = SkipStun,
+            AutoConnectAtLaunch = AutoConnectProfile
+        };
+    }
 
     private static bool HasSameConnectionSettings(ConnectionProfile current, ConnectionProfile draft) =>
         current.ServerAddress.Equals(draft.ServerAddress, StringComparison.OrdinalIgnoreCase) &&
@@ -1060,6 +1193,9 @@ public partial class MainViewModel : ViewModelBase, IAsyncDisposable
         current.HttpProxy.Equals(draft.HttpProxy, StringComparison.Ordinal) &&
         current.Transport.Equals(draft.Transport, StringComparison.Ordinal) &&
         current.MaxChannels == draft.MaxChannels &&
+        string.Equals(current.RoamSeed, draft.RoamSeed, StringComparison.Ordinal) &&
+        current.RoamPortCount == draft.RoamPortCount &&
+        current.RoamIntervalSeconds == draft.RoamIntervalSeconds &&
         current.UseHttpProxy == draft.UseHttpProxy &&
         current.ForceSymmetric == draft.ForceSymmetric &&
         current.AggressivePortScan == draft.AggressivePortScan &&
@@ -1074,6 +1210,9 @@ public partial class MainViewModel : ViewModelBase, IAsyncDisposable
         HttpProxy = _settings.HttpProxy;
         SelectedTransport = TransportOptions.Contains(_settings.Transport) ? _settings.Transport : "Reliable";
         MaxChannels = Math.Clamp(_settings.MaxChannels, 1, 64);
+        RoamSeed = _settings.RoamSeed ?? string.Empty;
+        RoamPortCount = Math.Clamp(_settings.RoamPortCount > 0 ? _settings.RoamPortCount : 10, 1, 256);
+        RoamIntervalSeconds = Math.Clamp(_settings.RoamIntervalSeconds > 0 ? _settings.RoamIntervalSeconds : 10, 1, 3600);
         UseHttpProxy = _settings.UseHttpProxy;
         ForceSymmetric = _settings.ForceSymmetric;
         AggressivePortScan = _settings.AggressivePortScan;
@@ -1083,7 +1222,34 @@ public partial class MainViewModel : ViewModelBase, IAsyncDisposable
 
     private bool ValidateDraft(out string error)
     {
-        if (!Uri.TryCreate(NormalizeServer(ServerAddress), UriKind.Absolute, out var uri) || uri.Scheme is not ("http" or "https"))
+        var parsed = MZRoamProtocol.ParseServerLine(ServerAddress);
+        var cleanAddress = parsed?.Address ?? ServerAddress;
+
+        if (IsMZRoamSelected)
+        {
+            var host = MZRoamProtocol.ExtractHost(cleanAddress);
+            var builtIn = FindBuiltInServer(cleanAddress);
+            var hasSeed = !string.IsNullOrWhiteSpace(RoamSeed) ||
+                          (parsed?.HasRoamSeed == true) ||
+                          (builtIn?.HasRoamSeed == true);
+
+            if (string.IsNullOrWhiteSpace(host))
+                error = "Enter a valid Moz server hostname, IP, or URL.";
+            else if (!hasSeed)
+                error = "Enter a seed value for MZRoam (or select a server with a predefined seed).";
+            else if (RoamPortCount is < 1 or > 256)
+                error = "MZRoam port count must be between 1 and 256.";
+            else if (RoamIntervalSeconds is < 1 or > 3600)
+                error = "MZRoam time interval must be between 1 and 3600 seconds.";
+            else
+            {
+                error = string.Empty;
+                return true;
+            }
+            return false;
+        }
+
+        if (!Uri.TryCreate(NormalizeServer(cleanAddress), UriKind.Absolute, out var uri) || uri.Scheme is not ("http" or "https"))
             error = "Enter a valid Moz server URL.";
         else if (!StunServer.Equals("Auto", StringComparison.OrdinalIgnoreCase) && !LooksLikeEndpoint(StunServer))
             error = "Select Auto or enter a STUN server as host:port.";
@@ -1110,7 +1276,7 @@ public partial class MainViewModel : ViewModelBase, IAsyncDisposable
     [NotifyPropertyChangedFor(nameof(UiModeText))]
     private bool _isSimpleMode;
 
-    public string UiModeText => IsSimpleMode ? "Simple" : "Advanced";
+    public string UiModeText => IsSimpleMode ? "Auto" : "Pro";
 
     [ObservableProperty]
     private bool _isSimpleConnecting;
@@ -1167,8 +1333,39 @@ public partial class MainViewModel : ViewModelBase, IAsyncDisposable
 
     partial void OnServerAddressChanged(string value)
     {
+        OnPropertyChanged(nameof(RoamSeedPlaceholder));
         if (!_initialized || string.IsNullOrWhiteSpace(value)) return;
+
+        var parsed = MZRoamProtocol.ParseServerLine(value);
+        if (parsed is not null && parsed.HasRoamSeed && value.Contains('|'))
+        {
+            _builtinServers[NormalizeServer(parsed.Address)] = parsed;
+            _builtinServers[parsed.Address.Trim()] = parsed;
+            RoamSeed = parsed.RoamSeed!;
+            RoamPortCount = parsed.RoamPortCount;
+            RoamIntervalSeconds = parsed.RoamIntervalSeconds;
+            if (!string.IsNullOrWhiteSpace(parsed.Alias) && EditingConnection is null)
+            {
+                ProfileName = parsed.Alias;
+            }
+            return;
+        }
+
         if (EditingConnection is not null) return;
+
+        var builtIn = FindBuiltInServer(value);
+        if (builtIn is not null && !string.IsNullOrWhiteSpace(builtIn.Alias))
+        {
+            ProfileName = builtIn.Alias;
+            return;
+        }
+
+        if (IsMZRoamSelected ||
+            (!value.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
+             !value.StartsWith("https://", StringComparison.OrdinalIgnoreCase)))
+        {
+            return;
+        }
 
         _ = Task.Run(async () =>
         {
@@ -1204,10 +1401,11 @@ public partial class MainViewModel : ViewModelBase, IAsyncDisposable
     }
 
     [RelayCommand]
-    private async Task ToggleUiModeAsync()
+    private Task ToggleUiModeAsync()
     {
-        IsSimpleMode = !IsSimpleMode;
-        await SaveAsync();
+        IsSimpleMode = false;
+        StatusMessage = "Simple mode is currently disabled.";
+        return Task.CompletedTask;
     }
 
     [RelayCommand]
@@ -1508,9 +1706,25 @@ public partial class MainViewModel : ViewModelBase, IAsyncDisposable
 
             if (App.VpnManager != null)
             {
-                App.VpnManager.StartVpn(successfulConn.Name, successfulConn.SocksPort);
-                IsVpnActive = true;
-                successfulConn.RefreshVpnButtonText();
+                try
+                {
+                    if (App.VpnManager is Services.DesktopVpnServiceManager desktopVpn)
+                    {
+                        await desktopVpn.StartVpnAsync(successfulConn.Name, successfulConn.SocksPort, successfulConn.ServerAddress);
+                    }
+                    else
+                    {
+                        App.VpnManager.StartVpn(successfulConn.Name, successfulConn.SocksPort, successfulConn.ServerAddress);
+                    }
+                    IsVpnActive = App.VpnManager.IsVpnRunning;
+                    successfulConn.RefreshVpnButtonText();
+                }
+                catch (Exception ex)
+                {
+                    IsVpnActive = false;
+                    successfulConn.RefreshVpnButtonText();
+                    MozUtil.Logger.Log($"[SimpleMode TUN] Error: {ex.Message}");
+                }
             }
 
             SelectedConnection = successfulConn;
@@ -1689,15 +1903,30 @@ public partial class MainViewModel : ViewModelBase, IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        // Match the WPF client's shutdown behavior. Clear the Windows proxy before any
-        // fallible asynchronous cleanup so a stale in-memory connection flag or a save
-        // failure cannot leave the OS pointing at a proxy process that is about to exit.
-        if (OperatingSystem.IsWindows())
+        // 1. Cleanly shut down the OS-level VPN/TUN tunnel first so routing tables and DNS are restored
+        if (App.VpnManager != null && App.VpnManager.IsVpnRunning)
         {
-            try { StatusMessage = await _desktop.ClearSystemProxyAsync(); }
-            catch (Exception ex) { StatusMessage = $"Could not clear system proxy: {ex.Message}"; }
-            foreach (var connection in Connections) connection.IsSystemProxy = false;
+            try
+            {
+                App.VpnManager.StopVpn();
+                IsVpnActive = false;
+            }
+            catch (Exception ex)
+            {
+                MozUtil.Logger.Log($"Error stopping VPN tunnel during shutdown: {ex.Message}");
+            }
         }
+
+        // 2. Clear any active desktop-wide system proxy (Windows registry / GNOME gsettings)
+        try
+        {
+            StatusMessage = await _desktop.ClearSystemProxyAsync();
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Could not clear system proxy: {ex.Message}";
+        }
+        foreach (var connection in Connections) connection.IsSystemProxy = false;
 
         _stunTestCts?.Cancel();
         if (_stunTestTask is not null)

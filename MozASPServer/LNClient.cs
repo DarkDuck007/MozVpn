@@ -52,6 +52,11 @@ namespace DirtySocksASP
       const long MinSuspiciousIdleBytesPerSample = 64L * 1024;
       const long MaxIdleTransportBytesPerSample = 2L * 1024 * 1024;
       const long MaxIdleTransportBytesTotal = 4L * 1024 * 1024;
+      private readonly bool _isRoamSession;
+      public int LocalListenPort => SrvLocalPort;
+      public bool IsDisposed => Volatile.Read(ref _disposed) != 0;
+      public event EventHandler? Disposed;
+
       public LNClient(HttpContext context)
       {
          _context = context;
@@ -66,6 +71,63 @@ namespace DirtySocksASP
          context.Response.Headers[MozProtocol.VersionHeader] = MozProtocol.CurrentVersion.ToString();
          context.Response.Headers[MozProtocol.MinimumVersionHeader] = MozProtocol.MinimumVersion.ToString();
          context.Response.Headers[MozProtocol.CapabilitiesHeader] = ((uint)MozProtocol.ServerCapabilities).ToString();
+      }
+
+      public LNClient(ushort version, ushort minimumVersion, MozProtocolCapabilities capabilities)
+      {
+         _isRoamSession = true;
+         ServerStatsUpdateTimer.Elapsed += ServerStatsUpdateTimer_Elapsed;
+         IdleTransportGuardTimer.Elapsed += IdleTransportGuardTimer_Elapsed;
+         HttpProtocolCompatible = MozProtocol.IsCompatible(version, minimumVersion);
+         HttpClientProtocolVersion = version;
+         HttpClientMinimumProtocolVersion = minimumVersion;
+         HttpClientCapabilities = capabilities;
+      }
+
+      public (int LocalPort, byte[] ConnectionKeyBytes) StartRoamSession()
+      {
+         if (!HttpProtocolCompatible)
+            throw new InvalidOperationException("Incompatible Moz protocol version for MZRoam session.");
+
+         byte[] connKeyBytes = new byte[16];
+         System.Security.Cryptography.RandomNumberGenerator.Fill(connKeyBytes);
+         LNConnectionKey = Convert.ToBase64String(connKeyBytes);
+
+         _Server = new NetManager(this)
+         {
+            ChannelsCount = MaxChannels,
+            AutoRecycle = true,
+            UpdateTime = 1,
+            SimulatePacketLoss = false,
+            SimulateLatency = false,
+            EnableStatistics = true,
+            UnsyncedEvents = true,
+            DisconnectTimeout = 20000,
+            PingInterval = 5000,
+         };
+         _Server.Start(IPAddress.Loopback, IPAddress.IPv6Loopback, 0);
+         _lastTransportBytesSent = _Server.Statistics.BytesSent;
+         IdleTransportGuardTimer.Start();
+
+         SrvLocalPort = _Server.LocalPort;
+         ClientManager.AddReliableClient(SrvLocalPort, this);
+
+         _ = Task.Run(async () =>
+         {
+            while (IdlingTImer >= 0 && Volatile.Read(ref _disposed) == 0)
+            {
+               IdlingTImer++;
+               if (IdlingTImer > 30)
+               {
+                  this.Dispose();
+                  IdlingTImer = -60;
+                  break;
+               }
+               await Task.Delay(1000);
+            }
+         });
+
+         return (SrvLocalPort, connKeyBytes);
       }
 
       private void IdleTransportGuardTimer_Elapsed(object? sender, ElapsedEventArgs e)
@@ -522,6 +584,7 @@ namespace DirtySocksASP
                ClientManager.RemoveReliableClient(SrvLocalPort);
                IdleTransportGuardTimer.Dispose();
                ServerStatsUpdateTimer.Dispose();
+               try { Disposed?.Invoke(this, EventArgs.Empty); } catch { }
             }
          }
       }
@@ -529,7 +592,8 @@ namespace DirtySocksASP
       public void OnConnectionRequest(ConnectionRequest request)
       {
          Logger.Log("Connection request received.");
-         _Peers.Add(request.AcceptIfKey(LNConnectionKey));
+         var peer = request.AcceptIfKey(LNConnectionKey);
+         if (peer != null) _Peers.Add(peer);
       }
 
       public void OnNetworkError(IPEndPoint endPoint, SocketError socketError)
@@ -547,7 +611,7 @@ namespace DirtySocksASP
          {
             PeerLatencies.Add(peer.Id, latency * 2);
          }
-         if ((DateTime.UtcNow - StaticData.ServerStartDateTime).Minutes % 5 == 0)
+         if (!_isRoamSession && (DateTime.UtcNow - StaticData.ServerStartDateTime).Minutes % 5 == 0)
          {
             if (StaticData.HttpKeepAliveConnectionsCount == 0)
             {
@@ -988,20 +1052,23 @@ namespace DirtySocksASP
          _Peers.Remove(peer);
          PeerLatencies.Remove(peer.Id);
          PeerProtocols.TryRemove(peer.Id, out _);
-         _ = Task.Run(async () =>
+         if (!_isRoamSession)
          {
-            byte[] PunchPacket = new byte[2] { 255, 255 };
-            IPEndPoint PeerEndpoint = peer.EndPoint;
-            for (int i = 0; i < 20 * 20; i++)//20 20-second Recon attempts?
+            _ = Task.Run(async () =>
             {
-               _Server.SendUnconnectedMessage(PunchPacket, PeerEndpoint);
-               await Task.Delay(1000);
-               if (_Server.ConnectedPeerList.Where(x => x.EndPoint.Equals(PeerEndpoint) && x.ConnectionState == ConnectionState.Connected).Count() > 0)
+               byte[] PunchPacket = new byte[2] { 255, 255 };
+               IPEndPoint PeerEndpoint = peer.EndPoint;
+               for (int i = 0; i < 20 * 20; i++)//20 20-second Recon attempts?
                {
-                  break;
+                  _Server.SendUnconnectedMessage(PunchPacket, PeerEndpoint);
+                  await Task.Delay(1000);
+                  if (_Server.ConnectedPeerList.Where(x => x.EndPoint.Equals(PeerEndpoint) && x.ConnectionState == ConnectionState.Connected).Count() > 0)
+                  {
+                     break;
+                  }
                }
-            }
-         });
+            });
+         }
          if (_Peers.Count == 0)
          {
             IdlingTImer = 0;

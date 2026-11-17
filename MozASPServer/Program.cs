@@ -70,6 +70,11 @@ namespace DirtySocksASP
          StaticData.ServerStartDateTime = DateTime.UtcNow;
          LoadCsv("stun_success_stats.csv", StunStats);
          LoadCsv("nat_type_stats.csv", NatStats);
+         var roamService = MZRoamServerService.TryStartFromEnvironment();
+         if (roamService != null)
+         {
+            app.Lifetime.ApplicationStopping.Register(() => roamService.Dispose());
+         }
          //app.Urls.Add("http://0.0.0.0:5000");
          //app.UseStaticFiles();
          //app.UseDirectoryBrowser();
@@ -125,6 +130,7 @@ namespace DirtySocksASP
             $"Active: {StaticData.TotalActiveConnections}{Environment.NewLine}" +
             $"Threads: {Process.GetCurrentProcess().Threads.Count.ToString()}{Environment.NewLine}" +
             $"LNServers: {ClientManager.ReliableClients.Count().ToString()}{Environment.NewLine}" +
+            $"MZRoam: {(roamService != null ? $"Enabled (Ports={roamService.ActiveListenerCount}, Sessions={roamService.ActiveSessionCount})" : "Disabled")}{Environment.NewLine}" +
             $"Mem: {GC.GetTotalMemory(false) / 1024} KB MemLoad: {inf.MemoryLoadBytes / 1024} KB HeapSizeBytes: {inf.HeapSizeBytes / 1024} KB TotalCommittedBytes: {inf.TotalCommittedBytes / 1024} KB";
             return Returnstring;
          });

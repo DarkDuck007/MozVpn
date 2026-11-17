@@ -13,20 +13,15 @@
     <Border Grid.Row="0" Background="#101D29" BorderBrush="#223548" BorderThickness="0,0,0,1" Padding="18,12">
       <Grid ColumnDefinitions="Auto,*,Auto">
         <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
-          <Button Command="{Binding ToggleUiModeCommand}" Background="Transparent" BorderThickness="0" Padding="0" Cursor="Hand">
-            <StackPanel Orientation="Horizontal" Spacing="10">
-              <Border Width="36" Height="36" CornerRadius="5" Background="#000000" ClipToBounds="True">
-                <Image Source="/Assets/avalonia-logo.ico" Stretch="Uniform" />
-              </Border>
-              <StackPanel VerticalAlignment="Center">
-                <TextBlock Text="MOZ" FontWeight="Bold" FontSize="20" />
-                <TextBlock Text="Classic Backend, Modern UI" Classes="muted" FontSize="11" />
-              </StackPanel>
+          <StackPanel Orientation="Horizontal" Spacing="10">
+            <Border Width="36" Height="36" CornerRadius="5" Background="#000000" ClipToBounds="True">
+              <Image Source="/Assets/avalonia-logo.ico" Stretch="Uniform" />
+            </Border>
+            <StackPanel VerticalAlignment="Center">
+              <TextBlock Text="MOZ" FontWeight="Bold" FontSize="20" />
+              <TextBlock Text="Classic Backend, Modern UI" Classes="muted" FontSize="11" />
             </StackPanel>
-          </Button>
-          <Border Background="#223548" CornerRadius="3" Padding="6,3" VerticalAlignment="Center" Margin="5,0,0,0">
-            <TextBlock Text="{Binding UiModeText}" FontSize="11" FontWeight="SemiBold" Foreground="#4CC9F0" />
-          </Border>
+          </StackPanel>
         </StackPanel>
         <TextBlock Grid.Column="1" Text="{Binding StatusMessage}" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#B8CAD9" />
         <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
@@ -55,6 +50,9 @@
                           <StackPanel Orientation="Horizontal" Spacing="7">
                             <Ellipse Width="9" Height="9" Fill="{Binding StatusBrush}" VerticalAlignment="Center" />
                             <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                            <Border IsVisible="{Binding IsTunActive}" Background="#00E676" CornerRadius="3" Padding="4,1" Margin="4,0,0,0" VerticalAlignment="Center">
+                              <TextBlock Text="TUN" FontSize="9" FontWeight="Bold" Foreground="#000000" />
+                            </Border>
                           </StackPanel>
                           <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Text="{Binding ServerAddress}" TextTrimming="CharacterEllipsis" FontSize="11" Classes="muted" />
                           <Grid Grid.Row="2" Grid.ColumnSpan="2" ColumnDefinitions="*,*,*,*" ColumnSpacing="8" Margin="0,8,0,0">
@@ -88,6 +86,9 @@
                           <StackPanel Orientation="Horizontal" Spacing="6">
                             <Ellipse Width="7" Height="7" Fill="{Binding StatusBrush}" VerticalAlignment="Center" />
                             <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                            <Border IsVisible="{Binding IsTunActive}" Background="#00E676" CornerRadius="3" Padding="3,1" Margin="4,0,0,0" VerticalAlignment="Center">
+                              <TextBlock Text="TUN" FontSize="8" FontWeight="Bold" Foreground="#000000" />
+                            </Border>
                           </StackPanel>
                           <TextBlock Grid.Column="1" Text="{Binding Latency}" Foreground="{Binding LatencyBrush}" FontWeight="SemiBold" FontSize="10" />
                           <StackPanel Grid.Row="1" Grid.ColumnSpan="2" Margin="13,8,0,0">
@@ -120,8 +121,8 @@
                               PlaceholderText="https://server/ or select known" />
                     <Button Grid.Column="1" Content="＋" Command="{Binding AddCustomServerCommand}" ToolTip.Tip="Remember this server" />
                   </Grid>
-                  <TextBlock Text="STUN server" Classes="muted" />
-                  <Grid ColumnDefinitions="*,Auto">
+                  <TextBlock Text="STUN server" Classes="muted" IsVisible="{Binding !IsMZRoamSelected}" />
+                  <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding !IsMZRoamSelected}">
                     <ComboBox ItemsSource="{Binding StunOptions}"
                               Text="{Binding StunServer, Mode=TwoWay}"
                               IsEditable="True"
@@ -139,13 +140,27 @@
                       <ComboBox ItemsSource="{Binding ChannelOptions}" SelectedItem="{Binding MaxChannels}" />
                     </StackPanel>
                   </Grid>
-                  <CheckBox Content="Use HTTP proxy to initiate connection" IsChecked="{Binding UseHttpProxy}" />
-                  <Grid ColumnDefinitions="*,Auto">
+                  <StackPanel Spacing="8" IsVisible="{Binding IsMZRoamSelected}">
+                    <TextBlock Text="MZRoam seed" Classes="muted" />
+                    <TextBox Text="{Binding RoamSeed}" PlaceholderText="{Binding RoamSeedPlaceholder}" />
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                      <StackPanel>
+                        <TextBlock Text="Ports per window" Classes="muted" />
+                        <TextBox Text="{Binding RoamPortCount}" />
+                      </StackPanel>
+                      <StackPanel Grid.Column="1">
+                        <TextBlock Text="Window interval (s)" Classes="muted" />
+                        <TextBox Text="{Binding RoamIntervalSeconds}" />
+                      </StackPanel>
+                    </Grid>
+                  </StackPanel>
+                  <CheckBox Content="Use HTTP proxy to initiate connection" IsChecked="{Binding UseHttpProxy}" IsVisible="{Binding !IsMZRoamSelected}" />
+                  <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding !IsMZRoamSelected}">
                     <TextBox Text="{Binding HttpProxy}" PlaceholderText="http://proxy:port" />
                     <Button Grid.Column="1" Content="＋" Command="{Binding AddCustomHttpProxyCommand}" ToolTip.Tip="Remember this HTTP proxy" />
                   </Grid>
-                  <ComboBox ItemsSource="{Binding HttpProxyOptions}" SelectedItem="{Binding SelectedHttpProxyOption}" PlaceholderText="Saved HTTP proxies" />
-                  <WrapPanel>
+                  <ComboBox ItemsSource="{Binding HttpProxyOptions}" SelectedItem="{Binding SelectedHttpProxyOption}" PlaceholderText="Saved HTTP proxies" IsVisible="{Binding !IsMZRoamSelected}" />
+                  <WrapPanel IsVisible="{Binding !IsMZRoamSelected}">
                     <CheckBox Content="Force symmetric" IsChecked="{Binding ForceSymmetric}" Margin="0,0,12,0" />
                     <CheckBox Content="Aggressive ports" IsChecked="{Binding AggressivePortScan}" Margin="0,0,12,0" />
                     <CheckBox Content="Skip STUN" IsChecked="{Binding SkipStun}" />
@@ -181,8 +196,7 @@
                                 CommandParameter="{Binding}" />
                         <Button IsVisible="{ReflectionBinding !DataContext.IsAndroid, ElementName=Root}"
                                 Content="Launch browser" Classes="accent" Command="{ReflectionBinding DataContext.LaunchBrowserCommand, ElementName=Root}" CommandParameter="{Binding}" />
-                        <Button IsVisible="{ReflectionBinding DataContext.IsAndroid, ElementName=Root}"
-                                Content="{Binding VpnButtonText}" Background="{Binding VpnButtonBrush}" Foreground="White" Command="{ReflectionBinding DataContext.ToggleVpnModeCommand, ElementName=Root}" CommandParameter="{Binding}" />
+                        <Button Content="{Binding VpnButtonText}" Background="{Binding VpnButtonBrush}" Foreground="White" Command="{ReflectionBinding DataContext.ToggleVpnModeCommand, ElementName=Root}" CommandParameter="{Binding}" ToolTip.Tip="Route all system traffic through this connection (TUN mode)" />
                       </StackPanel>
                     </Grid>
 

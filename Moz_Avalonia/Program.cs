@@ -1,6 +1,8 @@
 using Avalonia;
 using System;
+#if !ANDROID
 using HotAvalonia;
+#endif
 
 namespace Moz_Avalonia;
 
@@ -21,7 +23,7 @@ sealed class Program
         builder = builder.UsePlatformDetect();
 #endif
         return builder
-#if DEBUG
+#if DEBUG && !ANDROID
             .WithDeveloperTools()
             .UseHotReload()
 #endif

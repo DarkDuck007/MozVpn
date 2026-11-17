@@ -1,0 +1,10 @@
+<component name="libraryTable">
+  <library name="libcore">
+    <CLASSES>
+      <root url="file:///tmp/JetBrains/xamarinAarPackages/libcore/classes.jar" />
+      <root url="file:///tmp/JetBrains/xamarinAarPackages/libcore/res" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>

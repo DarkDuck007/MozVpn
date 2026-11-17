@@ -7,7 +7,7 @@
         <Nullable>enable</Nullable>
         <ApplicationManifest Condition="'$(TargetFramework)' == 'net10.0'">app.manifest</ApplicationManifest>
         <ApplicationIcon Condition="'$(TargetFramework)' == 'net10.0'">Assets/avalonia-logo.ico</ApplicationIcon>
-        <Version>1.0.0</Version>
+        <Version>1.1.0</Version>
     </PropertyGroup>
 
     <!-- Desktop publish size and single-file compression optimizations -->
@@ -15,6 +15,7 @@
         <PublishTrimmed>false</PublishTrimmed>
         <PublishAot>false</PublishAot>
         <PublishReadyToRun>false</PublishReadyToRun>
+        <PublishSingleFile>true</PublishSingleFile>
         <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
         <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
     </PropertyGroup>
@@ -29,6 +30,8 @@
         <AvaloniaResource Include="Assets\**" />
         <EmbeddedResource Include="..\MozVpnWPF\ServerList.txt" Link="Resources\ServerList.txt" />
         <EmbeddedResource Include="..\MozVpnWPF\StunList.txt" Link="Resources\StunList.txt" />
+        <EmbeddedResource Include="Resources\Binaries\linux-x64\*" Condition="('$(RuntimeIdentifier)' == 'linux-x64' or '$(RuntimeIdentifier)' == '') and '$(TargetFramework)' == 'net10.0'" />
+        <EmbeddedResource Include="Resources\Binaries\win-x64\*" Condition="('$(RuntimeIdentifier)' == 'win-x64' or '$(RuntimeIdentifier)' == '') and '$(TargetFramework)' == 'net10.0'" />
     </ItemGroup>
 
     <ItemGroup>
@@ -41,7 +44,7 @@
             <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
         </PackageReference>
         <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
-        <PackageReference Include="HotAvalonia" Version="3.1.4" />
+        <PackageReference Include="HotAvalonia" Version="3.1.4" Condition="'$(TargetFramework)' == 'net10.0'" />
         <PackageReference Include="DialogHost.Avalonia" Version="0.12.3" />
     </ItemGroup>
 

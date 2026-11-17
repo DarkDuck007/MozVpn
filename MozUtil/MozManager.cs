@@ -44,12 +44,20 @@ namespace MozUtil
         private string? _stunSpoofLocalAddr;
         private string? _stunSpoofPublicAddr;
         private STUNNATType? _stunSpoofNatType;
+        private readonly string? _roamSeed;
+        private readonly int _roamPortCount;
+        private readonly int _roamIntervalSeconds;
+        private MZRoamClientRelay? _roamRelay;
+
         public MozManager(string ServerHost, byte MaxChannels, string StunServerAddress, int SocksPort = 63600,
            int HttpPort = 63700,
            int HolePunchTimeout = 10000, bool IsServerLocal = false, TransportMode ConnectionMode = TransportMode.LiteNet,
-           bool useProxy = false, string? proxyAddress = null, bool ForceActSymmetric = false, bool SkipStun = false, string? stunSpoofLocalAddr = null, string? stunSpoofPublicAddr = null, STUNNATType? stunSpoofNatType = null)
+           bool useProxy = false, string? proxyAddress = null, bool ForceActSymmetric = false, bool SkipStun = false,
+           string? stunSpoofLocalAddr = null, string? stunSpoofPublicAddr = null, STUNNATType? stunSpoofNatType = null,
+           string? roamSeed = null, int roamPortCount = 0, int roamIntervalSeconds = 0)
         {
-            ServerURL = ServerHost;
+            var descriptor = MZRoamProtocol.ParseServerLine(ServerHost);
+            ServerURL = descriptor?.Address ?? ServerHost;
             ChannelCount = MaxChannels;
             _SocksPort = SocksPort;
             _HttpPort = HttpPort;
@@ -65,6 +73,9 @@ namespace MozUtil
             _stunSpoofLocalAddr = stunSpoofLocalAddr;
             _stunSpoofPublicAddr = stunSpoofPublicAddr;
             _stunSpoofNatType = stunSpoofNatType;
+            _roamSeed = !string.IsNullOrWhiteSpace(roamSeed) ? roamSeed.Trim() : descriptor?.RoamSeed;
+            _roamPortCount = roamPortCount > 0 ? roamPortCount : (descriptor?.RoamPortCount ?? MZRoamProtocol.DefaultPortCount);
+            _roamIntervalSeconds = roamIntervalSeconds > 0 ? roamIntervalSeconds : (descriptor?.RoamIntervalSeconds ?? MZRoamProtocol.DefaultIntervalSeconds);
         }
         public NetStatistics? LiteNetStats
         {
@@ -122,6 +133,7 @@ namespace MozUtil
                 //MClient?.Dispose();
                 //stunClient?.Dispose();
                 if (!ReferenceEquals(MClient, null)) MClient?.Dispose();
+                if (!ReferenceEquals(_roamRelay, null)) _roamRelay?.Dispose();
                 if (!ReferenceEquals(stunClient, null)) stunClient?.Dispose();
                 if (!ReferenceEquals(WebReq, null)) WebReq.Abort();
 
@@ -234,6 +246,49 @@ namespace MozUtil
                 if (uMode == TransportMode.TCP)
                 {
                     StatusUpdated?.Invoke(this, StatusResult.StunT);
+                }
+                else if (uMode == TransportMode.MZRoam)
+                {
+                    if (string.IsNullOrWhiteSpace(_roamSeed))
+                    {
+                        Logger.Log("[MZRoam] Cannot initiate connection: no MZRoam seed is configured for this server.");
+                        StatusUpdated?.Invoke(this, StatusResult.UDPError);
+                        return false;
+                    }
+
+                    StatusUpdated?.Invoke(this, StatusResult.UDPConnecting);
+                    _roamRelay?.Dispose();
+                    string host = LocalMode ? "127.0.0.1" : MZRoamProtocol.ExtractHost(ServerURL);
+                    var relay = new MZRoamClientRelay(host, _roamSeed, _roamPortCount, _roamIntervalSeconds);
+                    _roamRelay = relay;
+
+                    bool handshaked = await relay.InitializeAndHandshakeAsync(HolePunchingTimeout, CTS.Token);
+                    if (!handshaked || relay.LocalRelayEndPoint == null || string.IsNullOrEmpty(relay.ConnectionKey))
+                    {
+                        relay.Dispose();
+                        if (ReferenceEquals(_roamRelay, relay)) _roamRelay = null;
+                        StatusUpdated?.Invoke(this, StatusResult.UDPError);
+                        return false;
+                    }
+
+                    stunResult = new STUNQueryResult
+                    {
+                        LocalEndPoint = new IPEndPoint(IPAddress.Loopback, 0),
+                        PublicEndPoint = relay.LocalRelayEndPoint,
+                        NATType = STUNNATType.OpenInternet
+                    };
+
+                    var roamUdpInfo = new udpConnectionInfo
+                    {
+                        udpMode = TransportMode.MZRoam,
+                        addressFamily = relay.LocalRelayEndPoint.AddressFamily,
+                        ipAddress = relay.LocalRelayEndPoint.Address,
+                        Port = relay.LocalRelayEndPoint.Port,
+                        ConnectionKey = relay.ConnectionKey
+                    };
+
+                    _ = StartUdpTun(roamUdpInfo);
+                    return true;
                 }
                 else if (uMode == TransportMode.LiteNet || uMode == TransportMode.Normal)
                 {
@@ -386,7 +441,8 @@ namespace MozUtil
                             }
                     }
                 }
-                else if (udpInfo.udpMode == TransportMode.LiteNet && uMode == TransportMode.LiteNet)
+                else if ((udpInfo.udpMode == TransportMode.LiteNet && uMode == TransportMode.LiteNet) ||
+                         (udpInfo.udpMode == TransportMode.MZRoam && uMode == TransportMode.MZRoam))
                 {
                     MClient = new LiteNetMozClient(LocalEP, ServerEP, ChannelCount, SocksPort, HTTPPort);
                     //MClient.StatusUpdate += (object sender, StatusResult e) => {
@@ -396,7 +452,10 @@ namespace MozUtil
                     MClient.StatusUpdate += (sender, e) => { StatusUpdated?.Invoke(sender, e); };
                     MClient.SubTunCreated += (sender, e) => { SubTunCreated?.Invoke(sender, e); };
                     MClient.PortsChanged += MClient_PortsChanged;
-                    MClient.HttpKeepAliveRequested += MClient_HttpKeepAliveRequested;
+                    if (uMode != TransportMode.MZRoam)
+                    {
+                        MClient.HttpKeepAliveRequested += MClient_HttpKeepAliveRequested;
+                    }
                     MClient.symmetricConnectionClientCount = symmetricConnectionClientCount;
                     await MClient.Start(udpInfo, stunResult.NATType);
                     //StatusUpdated?.Invoke(this, StatusResult.Disconnected);

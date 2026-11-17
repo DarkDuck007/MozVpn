@@ -60,14 +60,16 @@ public partial class ConnectionViewModel : ViewModelBase, IAsyncDisposable
     public int HttpPort { get; }
     public string SocksAddress => IsConnected ? $"socks5://127.0.0.1:{SocksPort}" : "—";
     public string HttpAddress => IsConnected ? $"http://127.0.0.1:{HttpPort}" : "—";
-    public string VpnButtonText => (App.VpnManager?.IsVpnRunning == true && App.VpnManager.ActiveProfileName == Name) ? "Stop VPN" : "VPN Mode";
+    public bool IsTunActive => App.VpnManager?.IsVpnRunning == true && App.VpnManager.ActiveProfileName == Name;
+    public string VpnButtonText => IsTunActive ? "Stop TUN" : "TUN Mode";
 
     [ObservableProperty] private IBrush _vpnButtonBrush = Brush.Parse("#2962FF");
 
     public void RefreshVpnButtonText()
     {
+        OnPropertyChanged(nameof(IsTunActive));
         OnPropertyChanged(nameof(VpnButtonText));
-        VpnButtonBrush = (App.VpnManager?.IsVpnRunning == true && App.VpnManager.ActiveProfileName == Name)
+        VpnButtonBrush = IsTunActive
             ? Brushes.LimeGreen
             : Brush.Parse("#2962FF");
     }
@@ -124,17 +126,21 @@ public partial class ConnectionViewModel : ViewModelBase, IAsyncDisposable
         DisconnectCommand.NotifyCanExecuteChanged();
         try
         {
-            var server = NormalizeServer(Profile.ServerAddress);
-            var stun = Profile.StunServer.Equals("Auto", StringComparison.OrdinalIgnoreCase)
-                ? await _resolveStun()
-                : Profile.StunServer;
             var mode = Profile.Transport switch
             {
                 "Unreliable" => TransportMode.Normal,
                 "TCP" => TransportMode.TCP,
                 "BALETUN" => TransportMode.BaleTun,
+                "MZRoam" => TransportMode.MZRoam,
                 _ => TransportMode.LiteNet
             };
+            var isRoam = mode == TransportMode.MZRoam;
+            var server = isRoam ? Profile.ServerAddress.Trim() : NormalizeServer(Profile.ServerAddress);
+            var stun = isRoam
+                ? string.Empty
+                : (Profile.StunServer.Equals("Auto", StringComparison.OrdinalIgnoreCase)
+                    ? await _resolveStun()
+                    : Profile.StunServer);
             STUN.STUNNATType? spoofNat = null;
             if (!string.IsNullOrEmpty(Profile.StunSpoofNatType) && 
                 Enum.TryParse<STUN.STUNNATType>(Profile.StunSpoofNatType, out var parsedNat))
@@ -142,10 +148,20 @@ public partial class ConnectionViewModel : ViewModelBase, IAsyncDisposable
                 spoofNat = parsedNat;
             }
 
+            if (isRoam)
+            {
+                HttpStatus = "MZRoam (UDP)";
+            }
+
+            var isLocal = server.Equals("http://127.0.0.1:5209/", StringComparison.OrdinalIgnoreCase) ||
+                          server.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase) ||
+                          server.Equals("localhost", StringComparison.OrdinalIgnoreCase);
+
             _manager = new MozManager(server, checked((byte)Profile.MaxChannels), stun, SocksPort, HttpPort, 10000,
-                server.Equals("http://127.0.0.1:5209/", StringComparison.OrdinalIgnoreCase), mode,
+                isLocal, mode,
                 Profile.UseHttpProxy, NullIfEmpty(Profile.HttpProxy), Profile.ForceSymmetric, Profile.SkipStun,
-                Profile.StunSpoofLocalAddr, Profile.StunSpoofPublicAddr, spoofNat);
+                Profile.StunSpoofLocalAddr, Profile.StunSpoofPublicAddr, spoofNat,
+                Profile.RoamSeed, Profile.RoamPortCount, Profile.RoamIntervalSeconds);
             _manager.symmetricConnectionClientCount = Profile.AggressivePortScan ? 3000 : 100;
             _manager.NewLogArrived += OnLog;
             _manager.LatencyUpdated += OnLatency;
@@ -292,7 +308,7 @@ public partial class ConnectionViewModel : ViewModelBase, IAsyncDisposable
                 if (!wasConnected)
                 {
                     _notify($"{Name} connected", "The UDP tunnel is ready.");
-                    if (_manager is not null)
+                    if (_manager is not null && !Profile.Transport.Equals("MZRoam", StringComparison.OrdinalIgnoreCase))
                     {
                         var stunSrv = _manager.StunServerAddress;
                         var natT = _manager.NatType;
