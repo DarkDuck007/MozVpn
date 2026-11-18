@@ -65,6 +65,9 @@ In short: you may use, modify, share and even sell Moz VPN, but if you distribut
 
 SPDX-License-Identifier: `AGPL-3.0-or-later`
 
+### Trademarks
+The license covers the code, not the name. "Moz VPN", "MozVPN", "MOZ-VM" and the Moz VPN logos may not be used for paid, modified or app-store versions without permission; forks must use their own name and branding. See [`TRADEMARKS.md`](TRADEMARKS.md).
+
 ### Third-party components
 These bundled submodules keep their own licenses:
 
