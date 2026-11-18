@@ -55,3 +55,19 @@ The resulting applications are:
 Trimming and NativeAOT are intentionally disabled on desktop targets. The current application and networking dependencies use reflection without complete trimming annotations, so enabling either optimization is not considered safe yet. On Android, managed assemblies are compiled Ahead-of-Time (AOT) to native machine code.
 
 See [`Moz_Avalonia/README.md`](Moz_Avalonia/README.md) for architecture and usage details.
+
+## License
+Copyright (C) 2024-2026 DarkDuck007 and Moz VPN contributors.
+
+Moz VPN is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version. See [`LICENSE`](LICENSE) for the full text.
+
+In short: you may use, modify, share and even sell Moz VPN, but if you distribute a modified version, or run a modified version (for example a modified Moz server) as a network service that others use, you must make its full source code available under the same license.
+
+SPDX-License-Identifier: `AGPL-3.0-or-later`
+
+### Third-party components
+These bundled submodules keep their own licenses:
+
+- [`LiteNetLib`](LiteNetLib) — MIT, Copyright (c) 2020 Ruslan Pyrch
+- [`STUN`](STUN) — MIT, Copyright (c) 2019 Moien007
+- [`HttpToSocks5Proxy`](HttpToSocks5Proxy) — MIT, Copyright (c) 2018 Miha Zupan
